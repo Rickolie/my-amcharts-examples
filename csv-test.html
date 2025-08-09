@@ -71,14 +71,9 @@
         header: true,
         dynamicTyping: true,
         complete: function(results) {
-          // Convert CSV Date + UTC Time to JS date timestamp
           var data = results.data.map(function(row) {
-            // Construct a date string and parse it
-            // Input format: Date = "8/3/2025", UTC Time = "12:16.2" (could be "HH:mm.s" format)
-            var dateStr = row.Date + " " + row["UTC Time"];
-            var parsedDate = parseDateTime(dateStr);
             return {
-              date: parsedDate.getTime(),  // amCharts DateAxis expects timestamp
+              date: new Date(row.timestamp).getTime(), // adjust 'timestamp' to match your CSV header
               CABINET_TEMPERATURE: row.CABINET_TEMPERATURE
             };
           });
@@ -87,28 +82,6 @@
           xAxis.data.setAll(data);
         }
       });
-
-      // Helper function to parse "MM/DD/YYYY HH:mm.s" (e.g. "8/3/2025 12:16.2")
-      function parseDateTime(dateTimeStr) {
-        // Split date and time
-        var parts = dateTimeStr.split(" ");
-        var datePart = parts[0];  // e.g. "8/3/2025"
-        var timePart = parts[1];  // e.g. "12:16.2"
-
-        var dateParts = datePart.split("/");
-        var month = parseInt(dateParts[0], 10) - 1; // zero-based month
-        var day = parseInt(dateParts[1], 10);
-        var year = parseInt(dateParts[2], 10);
-
-        // Time can be HH:mm.s (with fractional seconds)
-        var timeParts = timePart.split(":");
-        var hours = parseInt(timeParts[0], 10);
-        var minSec = parseFloat(timeParts[1]);
-        var minutes = Math.floor(minSec);
-        var seconds = (minSec - minutes) * 60;
-
-        return new Date(year, month, day, hours, minutes, seconds);
-      }
     });
   </script>
 </body>
