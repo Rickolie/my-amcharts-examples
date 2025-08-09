@@ -32,7 +32,7 @@
     var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
       maxDeviation: 0.2,
       groupData: false,
-      baseInterval: { timeUnit: "millisecond", count: 1 },
+      baseInterval: { timeUnit: "millisecond", count: 2 }, // finer but not 1ms
       renderer: am5xy.AxisRendererX.new(root, {}),
       tooltip: am5.Tooltip.new(root, {})
     }));
@@ -50,7 +50,6 @@
       tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
     }));
 
-    // Load CSV
     Papa.parse("csv/data.csv", {
       download: true,
       header: true,
@@ -58,13 +57,11 @@
       complete: function(results) {
         let parsed = results.data
           .filter(row => row.datetime) // remove empty rows
-          .map(row => {
-            let dt = row.datetime.split(".")[0]; // remove microseconds
-            return {
-              ...row,
-              datetime: new Date(dt).getTime()
-            };
-          });
+          .map(row => ({
+            ...row,
+            datetime: Date.parse(row.datetime) // safer parsing
+          }))
+          .filter(row => !isNaN(row.datetime)); // keep only valid dates
 
         series.data.setAll(parsed);
       }
