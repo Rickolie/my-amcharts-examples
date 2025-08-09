@@ -31,10 +31,9 @@
         })
       );
 
-      // Create axes
+      // Axes
       var xAxis = chart.xAxes.push(
         am5xy.DateAxis.new(root, {
-          maxDeviation: 0.5,
           baseInterval: { timeUnit: "second", count: 1 },
           renderer: am5xy.AxisRendererX.new(root, {}),
           tooltip: am5.Tooltip.new(root, {})
@@ -47,7 +46,7 @@
         })
       );
 
-      // Create series
+      // Series
       var series = chart.series.push(
         am5xy.LineSeries.new(root, {
           name: "Cabinet Temperature",
@@ -55,37 +54,44 @@
           yAxis: yAxis,
           valueYField: "CABINET_TEMPERATURE",
           valueXField: "date",
-          tooltip: am5.Tooltip.new(root, {
-            labelText: "{valueY}"
-          })
+          tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
         })
       );
 
-      series.strokes.template.setAll({
-        strokeWidth: 2
-      });
+      series.strokes.template.setAll({ strokeWidth: 2 });
 
-      // Load CSV data
+      // Load CSV
       Papa.parse("csv/data_CorrectedDateTime.csv", {
         download: true,
         header: true,
         dynamicTyping: true,
         complete: function(results) {
           var data = results.data
-            .filter(row => row.datetime && !isNaN(new Date(row.datetime).getTime())) // skip invalid rows
             .map(function(row) {
+              if (!row.datetime) return null;
+              var cleanTime = String(row.datetime).trim();
+              var ts = Date.parse(cleanTime); // parse ISO 8601
+              if (isNaN(ts)) {
+                console.warn("Invalid date:", cleanTime);
+                return null;
+              }
               return {
-                date: new Date(row.datetime).getTime(),
-                CABINET_TEMPERATURE: row.CABINET_TEMPERATURE
+                date: ts,
+                CABINET_TEMPERATURE: Number(row.CABINET_TEMPERATURE)
               };
-            });
+            })
+            .filter(item => item !== null);
 
-          series.data.setAll(data);
-          xAxis.data.setAll(data);
+          console.log("Parsed data:", data); // Debug output
+
+          if (data.length > 0) {
+            series.data.setAll(data);
+          } else {
+            console.error("No valid data found in CSV");
+          }
         }
       });
     });
   </script>
 </body>
 </html>
-
