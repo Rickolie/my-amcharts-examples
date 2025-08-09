@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>amCharts 5 — CSV with auto baseInterval</title>
-
   <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
   <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
   <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
+  <meta charset="UTF-8" />
+  <title>CSV Example</title>
   <style>
-    html,body { height:100%; margin:0; }
-    #chartdiv { width:100%; height:600px; }
+    #chartdiv {
+      width: 100%;
+      height: 500px;
+    }
   </style>
 </head>
 <body>
@@ -19,141 +19,68 @@
 
   <script>
   am5.ready(function() {
-    // --- helper functions ---
-    function normalizeIsoKeepMillis(s) {
-      if (!s) return s;
-      s = String(s).trim();
-      // If no timezone info present (no 'Z' and no offset like +01:00), append 'Z' to treat as UTC
-      var hasTZ = /[zZ]|[+\-]\d{2}:\d{2}$/.test(s);
-      // Reduce fractional seconds to milliseconds (3 digits) if more than 3 digits present
-      // e.g. 2025-08-03T00:00:00.000000 -> 2025-08-03T00:00:00.000
-      s = s.replace(/\.(\d{3})\d+/, '.$1');
-      if (!hasTZ) s = s + 'Z';
-      return s;
-    }
-
-    function toTimestamp(s) {
-      var ns = normalizeIsoKeepMillis(s);
-      var t = Date.parse(ns);
-      return isNaN(t) ? NaN : t;
-    }
-
-    function computeBaseIntervalFromGap(ms) {
-      ms = Math.max(1, Math.round(ms));
-      if (ms < 1000) {
-        return { timeUnit: "millisecond", count: Math.max(1, ms) };
-      } else if (ms < 60000) {
-        return { timeUnit: "second", count: Math.max(1, Math.round(ms / 1000)) };
-      } else if (ms < 3600000) {
-        return { timeUnit: "minute", count: Math.max(1, Math.round(ms / 60000)) };
-      } else if (ms < 86400000) {
-        return { timeUnit: "hour", count: Math.max(1, Math.round(ms / 3600000)) };
-      } else {
-        return { timeUnit: "day", count: Math.max(1, Math.round(ms / 86400000)) };
-      }
-    }
-
-    // --- create basic chart container (chart will be configured after CSV parsed) ---
     var root = am5.Root.new("chartdiv");
     root.setThemes([ am5themes_Animated.new(root) ]);
 
     var chart = root.container.children.push(am5xy.XYChart.new(root, {
-      panX: true, panY: true,
-      wheelX: "panX", wheelY: "zoomX"
+      panX: true,
+      panY: true,
+      wheelX: "panX",
+      wheelY: "zoomX"
     }));
 
-    chart.get("colors").set("step", 2);
+    var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      maxDeviation: 0.2,
+      groupData: false,
+      baseInterval: { timeUnit: "millisecond", count: 1 },
+      renderer: am5xy.AxisRendererX.new(root, {}),
+      tooltip: am5.Tooltip.new(root, {})
+    }));
 
-    // Add a cursor
-    chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" }));
+    var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
 
-    // --- load CSV and build axes/series based on parsed data ---
+    var series = chart.series.push(am5xy.LineSeries.new(root, {
+      name: "Cabinet Temp",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "CABINET_TEMPERATURE",
+      valueXField: "datetime",
+      tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
+    }));
+
+    // Load CSV
     Papa.parse("csv/data.csv", {
       download: true,
       header: true,
-      skipEmptyLines: true,
       dynamicTyping: true,
       complete: function(results) {
-        console.log("Papa.parse result (first rows):", results.data.slice(0,5));
+        let parsed = results.data
+          .filter(row => row.datetime) // remove empty rows
+          .map(row => {
+            // Convert datetime with microseconds to milliseconds only
+            // e.g. 2025-08-03T00:00:00.000000 -> 2025-08-03T00:00:00.000
+            let dt = row.datetime.replace(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d{3}$/, "$1.$2");
 
-        // map and parse datetimes
-        var rows = results.data
-          .map(r => {
-            var ts = toTimestamp(r.datetime);
             return {
-              _raw: r,
-              date: ts,
-              CABINET_TEMPERATURE: Number(r.CABINET_TEMPERATURE)
+              ...row,
+              datetime: new Date(dt).getTime()
             };
-          })
-          .filter(r => !isNaN(r.date)); // keep only rows with valid dates
+          });
 
-        if (!rows.length) {
+        if (parsed.length === 0) {
           console.error("No valid rows found in CSV (datetime parsing failed). Check CSV path/format.");
           return;
         }
 
-        // sort by date ascending
-        rows.sort((a,b) => a.date - b.date);
-
-        // compute minimal positive gap between unique timestamps
-        var uniq = Array.from(new Set(rows.map(r => r.date))).sort((a,b)=>a-b);
-        var diffs = [];
-        for (var i=1;i<uniq.length;i++){
-          var d = uniq[i] - uniq[i-1];
-          if (d > 0) diffs.push(d);
-        }
-        var minGap = diffs.length ? Math.min.apply(null, diffs) : 1000;
-        console.log("rows:", rows.length, "unique timestamps:", uniq.length, "minGap(ms):", minGap);
-
-        // pick baseInterval
-        var baseInterval = computeBaseIntervalFromGap(minGap);
-        console.log("chosen baseInterval:", baseInterval);
-
-        // create axes with chosen baseInterval
-        var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
-          baseInterval: baseInterval,
-          maxDeviation: 0.2,
-          groupData: false,
-          renderer: am5xy.AxisRendererX.new(root, {}),
-          tooltip: am5.Tooltip.new(root, {})
-        }));
-
-        var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
-          renderer: am5xy.AxisRendererY.new(root, {})
-        }));
-
-        // create series (single series for CABINET_TEMPERATURE)
-        var series = chart.series.push(am5xy.LineSeries.new(root, {
-          name: "Cabinet Temperature",
-          xAxis: xAxis,
-          yAxis: yAxis,
-          valueYField: "CABINET_TEMPERATURE",
-          valueXField: "date",
-          tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
-        }));
-
-        series.strokes.template.setAll({ strokeWidth: 2 });
-
-        // set data (use the pre-sorted rows)
-        // ensure we map to {date: <ms>, CABINET_TEMPERATURE: <number>}
-        var dataForChart = rows.map(r => ({ date: r.date, CABINET_TEMPERATURE: r.CABINET_TEMPERATURE }));
-        console.log("First rows for chart:", dataForChart.slice(0,8));
-        series.data.setAll(dataForChart);
-
-        // set axis data (optional; DateAxis works off series data)
-        xAxis.data.setAll(dataForChart);
-
-        // zoom to full range
-        chart.appear(800, 100);
-        series.appear(800);
-      },
-      error: function(err) {
-        console.error("Papa.parse error:", err);
+        series.data.setAll(parsed);
       }
     });
 
-  }); // end am5.ready
+    series.appear(1000);
+    chart.appear(1000, 100);
+  });
   </script>
 </body>
 </html>
