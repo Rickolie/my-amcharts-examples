@@ -1,80 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>amCharts 5 Minimal Test</title>
-<style>
-  html, body { width: 100%; height: 100%; margin: 0; }
-  #chartdiv { width: 100%; height: 100%; }
-</style>
+  <meta charset="UTF-8" />
+  <title>amCharts 5 CSV Example</title>
+  <style>
+    #chartdiv {
+      width: 100%;
+      height: 500px;
+    }
+  </style>
 </head>
 <body>
-<div id="chartdiv"></div>
+  <h1>amCharts 5 - CSV Data Example</h1>
+  <div id="chartdiv"></div>
 
-<!-- amCharts 5 core and xy charts -->
-<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
-<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
-<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-<script>
-am5.ready(function() {
+  <script>
+    am5.ready(function() {
+      var root = am5.Root.new("chartdiv");
 
-  // Root element
-  var root = am5.Root.new("chartdiv");
+      var chart = root.container.children.push(
+        am5xy.XYChart.new(root, {
+          panX: true,
+          panY: true,
+          wheelX: "panX",
+          wheelY: "zoomX"
+        })
+      );
 
-  // Apply a theme
-  root.setThemes([
-    am5themes_Animated.new(root)
-  ]);
+      // Create axes
+      var xAxis = chart.xAxes.push(
+        am5xy.DateAxis.new(root, {
+          maxDeviation: 0.5,
+          baseInterval: { timeUnit: "second", count: 1 },
+          renderer: am5xy.AxisRendererX.new(root, {}),
+          tooltip: am5.Tooltip.new(root, {})
+        })
+      );
 
-  // Create chart
-  var chart = root.container.children.push(am5xy.XYChart.new(root, {
-    panX: true,
-    panY: true,
-    wheelX: "panX",
-    wheelY: "zoomX"
-  }));
+      var yAxis = chart.yAxes.push(
+        am5xy.ValueAxis.new(root, {
+          renderer: am5xy.AxisRendererY.new(root, {})
+        })
+      );
 
-  // Create axes
-  var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
-    baseInterval: { timeUnit: "second", count: 1 },
-    renderer: am5xy.AxisRendererX.new(root, {}),
-    tooltip: am5.Tooltip.new(root, {})
-  }));
+      // Create series
+      var series = chart.series.push(
+        am5xy.LineSeries.new(root, {
+          name: "Cabinet Temperature",
+          xAxis: xAxis,
+          yAxis: yAxis,
+          valueYField: "CABINET_TEMPERATURE",
+          valueXField: "date",
+          tooltip: am5.Tooltip.new(root, {
+            labelText: "{valueY}"
+          })
+        })
+      );
 
-  var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
-    renderer: am5xy.AxisRendererY.new(root, {})
-  }));
+      series.strokes.template.setAll({
+        strokeWidth: 2
+      });
 
-  // Create series
-  var series = chart.series.push(am5xy.LineSeries.new(root, {
-    name: "Cabinet Temperature",
-    xAxis: xAxis,
-    yAxis: yAxis,
-    valueYField: "CABINET_TEMPERATURE",
-    valueXField: "date",
-    tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
-  }));
+      // Load CSV data
+      Papa.parse("csv/data_CorrectedDateTime.csv", {
+        download: true,
+        header: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          var data = results.data
+            .filter(row => row.datetime && !isNaN(new Date(row.datetime).getTime())) // skip invalid rows
+            .map(function(row) {
+              return {
+                date: new Date(row.datetime).getTime(),
+                CABINET_TEMPERATURE: row.CABINET_TEMPERATURE
+              };
+            });
 
-  series.strokes.template.setAll({ strokeWidth: 2 });
-
-  // Hardcoded data
-  var data = [
-    { date: new Date("2025-08-03T00:00:00").getTime(), CABINET_TEMPERATURE: 616 },
-    { date: new Date("2025-08-03T00:00:00").getTime(), CABINET_TEMPERATURE: 617 },
-    { date: new Date("2025-08-03T00:00:12").getTime(), CABINET_TEMPERATURE: 609 },
-    { date: new Date("2025-08-03T00:00:12").getTime(), CABINET_TEMPERATURE: 647 },
-    { date: new Date("2025-08-03T00:00:24").getTime(), CABINET_TEMPERATURE: 601 }
-  ];
-
-  series.data.setAll(data);
-
-  // Make stuff animate in
-  series.appear(1000);
-  chart.appear(1000, 100);
-
-}); // end am5.ready()
-</script>
-
+          series.data.setAll(data);
+          xAxis.data.setAll(data);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
