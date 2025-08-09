@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+  <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <meta charset="UTF-8" />
-  <title>amCharts 5 CSV Example</title>
+  <title>CSV Example</title>
   <style>
     #chartdiv {
       width: 100%;
@@ -11,80 +15,64 @@
   </style>
 </head>
 <body>
-  <h1>amCharts 5 - CSV Data Example</h1>
   <div id="chartdiv"></div>
 
-  <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
-  <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
   <script>
-    am5.ready(function() {
-      var root = am5.Root.new("chartdiv");
+  am5.ready(function() {
+    var root = am5.Root.new("chartdiv");
+    root.setThemes([ am5themes_Animated.new(root) ]);
 
-      var chart = root.container.children.push(
-        am5xy.XYChart.new(root, {
-          panX: true,
-          panY: true,
-          wheelX: "panX",
-          wheelY: "zoomX"
-        })
-      );
+    var chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: true,
+      panY: true,
+      wheelX: "panX",
+      wheelY: "zoomX"
+    }));
 
-      // Create axes
-      var xAxis = chart.xAxes.push(
-        am5xy.DateAxis.new(root, {
-          maxDeviation: 0.5,
-          baseInterval: { timeUnit: "second", count: 1 },
-          renderer: am5xy.AxisRendererX.new(root, {}),
-          tooltip: am5.Tooltip.new(root, {})
-        })
-      );
+    var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      maxDeviation: 0.2,
+      groupData: false,
+      baseInterval: { timeUnit: "millisecond", count: 1 },
+      renderer: am5xy.AxisRendererX.new(root, {}),
+      tooltip: am5.Tooltip.new(root, {})
+    }));
 
-      var yAxis = chart.yAxes.push(
-        am5xy.ValueAxis.new(root, {
-          renderer: am5xy.AxisRendererY.new(root, {})
-        })
-      );
+    var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
 
-      // Create series
-      var series = chart.series.push(
-        am5xy.LineSeries.new(root, {
-          name: "Cabinet Temperature",
-          xAxis: xAxis,
-          yAxis: yAxis,
-          valueYField: "CABINET_TEMPERATURE",
-          valueXField: "date",
-          tooltip: am5.Tooltip.new(root, {
-            labelText: "{valueY}"
-          })
-        })
-      );
+    var series = chart.series.push(am5xy.LineSeries.new(root, {
+      name: "Cabinet Temp",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "CABINET_TEMPERATURE",
+      valueXField: "datetime",
+      tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
+    }));
 
-      series.strokes.template.setAll({
-        strokeWidth: 2
-      });
+    // Load CSV
+    Papa.parse("data.csv", {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        let parsed = results.data
+          .filter(row => row.datetime) // remove empty rows
+          .map(row => {
+            let dt = row.datetime.split(".")[0]; // remove microseconds
+            return {
+              ...row,
+              datetime: new Date(dt).getTime()
+            };
+          });
 
-      // Load CSV data
-      Papa.parse("csv/data_CorrectedDateTime.csv", {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete: function(results) {
-          var data = results.data
-            .filter(row => row.datetime && !isNaN(new Date(row.datetime).getTime())) // skip invalid rows
-            .map(function(row) {
-              return {
-                date: new Date(row.datetime).getTime(),
-                CABINET_TEMPERATURE: row.CABINET_TEMPERATURE
-              };
-            });
-
-          series.data.setAll(data);
-          xAxis.data.setAll(data);
-        }
-      });
+        series.data.setAll(parsed);
+      }
     });
+
+    series.appear(1000);
+    chart.appear(1000, 100);
+  });
   </script>
 </body>
 </html>
