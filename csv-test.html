@@ -2,21 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>amCharts 5 CSV Example</title>
+  <title>amCharts 5 Test</title>
   <style>
-    #chartdiv {
-      width: 100%;
-      height: 500px;
-    }
+    #chartdiv { width: 100%; height: 500px; }
   </style>
 </head>
 <body>
-  <h1>amCharts 5 - CSV Data Example</h1>
+  <h1>amCharts 5 - Hardcoded Data Test</h1>
   <div id="chartdiv"></div>
 
   <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
   <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
     am5.ready(function() {
@@ -31,7 +27,6 @@
         })
       );
 
-      // Axes
       var xAxis = chart.xAxes.push(
         am5xy.DateAxis.new(root, {
           baseInterval: { timeUnit: "second", count: 1 },
@@ -46,7 +41,6 @@
         })
       );
 
-      // Series
       var series = chart.series.push(
         am5xy.LineSeries.new(root, {
           name: "Cabinet Temperature",
@@ -60,39 +54,19 @@
 
       series.strokes.template.setAll({ strokeWidth: 2 });
 
-      // Load CSV
-      Papa.parse("csv/data_CorrectedDateTime.csv", {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete: function(results) {
-          var data = results.data
-            .map(function(row) {
-              if (!row.datetime) return null;
-              var cleanTime = String(row.datetime).trim();
-              var ts = Date.parse(cleanTime); // parse ISO 8601
-              if (isNaN(ts)) {
-                console.warn("Invalid date:", cleanTime);
-                return null;
-              }
-              return {
-                date: ts,
-                CABINET_TEMPERATURE: Number(row.CABINET_TEMPERATURE)
-              };
-            })
-            .filter(item => item !== null);
+      // Hardcoded data for test
+      var data = [
+        { date: Date.parse("2025-08-03T00:00:00"), CABINET_TEMPERATURE: 616 },
+        { date: Date.parse("2025-08-03T00:00:00"), CABINET_TEMPERATURE: 617 },
+        { date: Date.parse("2025-08-03T00:00:12"), CABINET_TEMPERATURE: 609 },
+        { date: Date.parse("2025-08-03T00:00:12"), CABINET_TEMPERATURE: 647 },
+        { date: Date.parse("2025-08-03T00:00:24"), CABINET_TEMPERATURE: 601 }
+      ];
 
-          console.log("Parsed data:", data); // Debug output
+      console.log("Test data:", data);
 
-          if (data.length > 0) {
-            series.data.setAll(data);
-          } else {
-            console.error("No valid data found in CSV");
-          }
-        }
-      });
+      series.data.setAll(data);
     });
   </script>
 </body>
 </html>
-
