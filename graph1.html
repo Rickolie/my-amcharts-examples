@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Signal Data Graph with Legend</title>
+<title>Signal Data Graph with Legend Colors</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
@@ -12,6 +12,11 @@
   #signalListContainer { margin: 15px 0; }
   label.signal { display: block; margin: 3px 0; }
   #chartdiv { width: 100%; height: 500px; margin-top: 20px; }
+  /* Legend container under the chart */
+  .amcharts-legend {
+    margin-top: 10px;
+    justify-content: center !important;
+  }
 </style>
 </head>
 <body>
@@ -44,22 +49,15 @@ let signalNames = [];
 let eventData = [];
 let switchData = [];
 let alarmData = [];
-let chart, xAxis, yAxis, root, legendContainer, legend;
+let chart, xAxis, yAxis, root;
 let activeSeries = {};
 const SIGNAL_START_COL = 4;
 
-// More varied color palette
+// Extended palette of colors for better variety
 const colors = [
-  0xff0000, // red
-  0x00ff00, // green
-  0x0000ff, // blue
-  0xffa500, // orange
-  0x800080, // purple
-  0x00ffff, // cyan
-  0xff69b4, // pink
-  0x808000, // olive
-  0x008080, // teal
-  0x000000, // black
+  0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
+  0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
+  0xa55194, 0xbd9e39, 0x637939, 0x8c6d31, 0xc7c7c7
 ];
 
 function readFile(file, callback) {
@@ -81,19 +79,8 @@ function initChart() {
   am5.ready(function() {
     root = am5.Root.new("chartdiv");
     root.setThemes([am5themes_Animated.new(root)]);
-
-    // Create a vertical container for chart + legend
-    let mainContainer = root.container.children.push(
-      am5.Container.new(root, {
-        layout: root.verticalLayout,
-        width: am5.percent(100),
-        height: am5.percent(100)
-      })
-    );
-
-    chart = mainContainer.children.push(am5xy.XYChart.new(root, {
-      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX",
-      height: 450
+    chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
     }));
 
     xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
@@ -106,21 +93,15 @@ function initChart() {
       renderer: am5xy.AxisRendererY.new(root, {})
     }));
 
-    // Legend container below the chart
-    legendContainer = mainContainer.children.push(
-      am5.Container.new(root, {
-        layout: root.horizontalLayout,
-        width: am5.percent(100),
-        centerX: am5.p50,
-        x: am5.p50,
-        paddingTop: 10
-      })
-    );
-
-    legend = legendContainer.children.push(
-      am5.Legend.new(root, {})
-    );
-
+    // Legend under chart
+    let legend = chart.children.push(am5.Legend.new(root, {
+      centerX: am5.p50,
+      x: am5.p50,
+      layout: root.horizontalLayout,
+      marginTop: 15,
+      paddingTop: 5,
+      paddingBottom: 5
+    }));
     chart.legend = legend;
   });
 }
@@ -151,7 +132,6 @@ function updateSignalCheckboxes() {
 function addSeries(colIndex) {
   if (activeSeries[colIndex]) return;
 
-  // Pick color cycling through colors array
   const colorIndex = Object.keys(activeSeries).length % colors.length;
   const seriesColor = am5.color(colors[colorIndex]);
 
@@ -163,10 +143,27 @@ function addSeries(colIndex) {
     valueXField: "date",
     tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" }),
     stroke: seriesColor,
-    fill: seriesColor
   }));
 
-  series.strokes.template.setAll({ strokeWidth: 2 });
+  // Add some fill with transparency for the series
+  series.fills.template.setAll({
+    fillOpacity: 0.2,
+    visible: true,
+    fill: seriesColor
+  });
+
+  series.strokes.template.setAll({
+    strokeWidth: 2,
+    stroke: seriesColor
+  });
+
+  // Customize legend marker color and size
+  series.legendSettings.markerTemplate.setAll({
+    width: 20,
+    height: 20,
+    stroke: seriesColor,
+    fill: seriesColor
+  });
 
   let dataset = dataLogData.slice(1).map(row => ({
     date: parseDate(row[0]).getTime(),
@@ -230,6 +227,7 @@ document.getElementById("dataLog").addEventListener("change", e => {
 document.getElementById("signalList").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     let parsed = parseCSV(text);
+    // Use second column or fallback to first for signal names
     signalNames = parsed.map(row => row[1] || row[0]);
     if (dataLogData.length > 0) updateSignalCheckboxes();
   });
