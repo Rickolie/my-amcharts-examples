@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Signal Data Graph</title>
+<title>Signal Data Graph with Events</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
@@ -39,10 +39,13 @@
 
 <script>
 let dataLogData = [];
-let signalNames = []; // Only signals starting from 4th column
+let signalNames = [];
+let eventData = [];
+let switchData = [];
+let alarmData = [];
 let chart, xAxis, yAxis;
 let activeSeries = {};
-const SIGNAL_START_COL = 3; // zero-based index for first signal column
+const SIGNAL_START_COL = 3;
 
 function readFile(file, callback) {
   if (!file) return;
@@ -105,7 +108,8 @@ function addSeries(colIndex) {
     xAxis: xAxis,
     yAxis: yAxis,
     valueYField: "col" + colIndex,
-    categoryXField: "time"
+    categoryXField: "time",
+    tooltip: am5.Tooltip.new(chart.root, { labelText: "{name}: {valueY}" })
   }));
 
   let dataset = dataLogData.slice(1).map(row => {
@@ -122,6 +126,41 @@ function removeSeries(colIndex) {
   delete activeSeries[colIndex];
 }
 
+function addEventMarkers() {
+  // Generic function for plotting events
+  function plotEvents(events, color, name) {
+    if (!events.length) return;
+    let series = chart.series.push(am5xy.ColumnSeries.new(chart.root, {
+      name: name,
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "marker",
+      categoryXField: "time",
+      clustered: false,
+      tooltip: am5.Tooltip.new(chart.root, { labelText: "{desc}" })
+    }));
+
+    series.columns.template.setAll({
+      width: am5.percent(2),
+      fill: am5.color(color),
+      stroke: am5.color(color)
+    });
+
+    let dataset = events.map(ev => ({
+      time: ev.time,
+      marker: 0, // baseline
+      desc: ev.description
+    }));
+
+    series.data.setAll(dataset);
+  }
+
+  plotEvents(eventData, 0xff0000, "Event");
+  plotEvents(switchData, 0x0000ff, "Switch");
+  plotEvents(alarmData, 0xffa500, "Alarm");
+}
+
+// File upload handlers
 document.getElementById("dataLog").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     dataLogData = parseCSV(text);
@@ -132,10 +171,41 @@ document.getElementById("dataLog").addEventListener("change", e => {
 document.getElementById("signalList").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     let parsed = parseCSV(text);
-    // Assume first column is ID, second column is Name
-    // We take them in order, mapping to DataLog columns starting at SIGNAL_START_COL
     signalNames = parsed.map(row => row[1] || row[0]);
     if (dataLogData.length > 0) updateSignalCheckboxes();
+  });
+});
+
+document.getElementById("eventLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    eventData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
+  });
+});
+
+document.getElementById("switchLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    switchData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
+  });
+});
+
+document.getElementById("alarmLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    alarmData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
   });
 });
 
