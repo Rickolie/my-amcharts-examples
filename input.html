@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Project Data Graph</title>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  select, button, input { margin: 5px 0; padding: 5px; }
+  .file-input { display: block; }
+</style>
+</head>
+<body>
+
+<h1>Data Graph Generator</h1>
+
+<!-- Project Dropdown -->
+<label>Project:</label>
+<select id="projectSelect"></select>
+<br>
+
+<!-- Upload Dropdown -->
+<label>Upload:</label>
+<select id="uploadSelect"></select>
+<br>
+
+<!-- File Uploads -->
+<label>DataLog:</label>
+<input type="file" id="dataLog" class="file-input">
+
+<label>SignalList:</label>
+<input type="file" id="signalList" class="file-input">
+
+<label>EventLog:</label>
+<input type="file" id="eventLog" class="file-input">
+
+<label>SwitchLog:</label>
+<input type="file" id="switchLog" class="file-input">
+
+<label>AlarmLog:</label>
+<input type="file" id="alarmLog" class="file-input">
+
+<br>
+<button id="generateGraph">Generate Graph</button>
+
+<hr>
+<div id="chartdiv" style="width: 100%; height: 500px;"></div>
+
+<script>
+/* ===============================
+   Local storage management
+================================*/
+function getProjects() {
+  return JSON.parse(localStorage.getItem("projects") || "{}");
+}
+function saveProjects(projects) {
+  localStorage.setItem("projects", JSON.stringify(projects));
+}
+
+function populateProjects() {
+  const select = document.getElementById("projectSelect");
+  select.innerHTML = "";
+  const projects = getProjects();
+  Object.keys(projects).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+  const newOpt = document.createElement("option");
+  newOpt.value = "__new__";
+  newOpt.textContent = "+ New Project";
+  select.appendChild(newOpt);
+}
+
+function populateUploads(project) {
+  const select = document.getElementById("uploadSelect");
+  select.innerHTML = "";
+  const projects = getProjects();
+  if (!projects[project]) return;
+  Object.keys(projects[project]).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+  const newOpt = document.createElement("option");
+  newOpt.value = "__new__";
+  newOpt.textContent = "+ New Upload";
+  select.appendChild(newOpt);
+}
+
+/* ===============================
+   File handling
+================================*/
+let selectedFiles = {};
+
+function handleFileChange(type, file) {
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      selectedFiles[type] = e.target.result;
+    };
+    reader.readAsText(file);
+  }
+}
+
+/* ===============================
+   Graph generation
+================================*/
+function generateGraph() {
+  // Example: just use DataLog as data source for demo
+  if (!selectedFiles["DataLog"]) {
+    alert("Please upload a DataLog file first!");
+    return;
+  }
+  const parsedData = parseCSV(selectedFiles["DataLog"]);
+
+  am5.ready(function() {
+    let root = am5.Root.new("chartdiv");
+    root.setThemes([am5themes_Animated.new(root)]);
+
+    let chart = root.container.children.push(
+      am5xy.XYChart.new(root, { panX: true, panY: true, wheelX: "panX", wheelY: "zoomX" })
+    );
+
+    let xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+      categoryField: "category",
+      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 30 })
+    }));
+
+    let yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
+
+    let series = chart.series.push(am5xy.LineSeries.new(root, {
+      name: "Value",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "value",
+      categoryXField: "category"
+    }));
+
+    series.data.setAll(parsedData);
+    xAxis.data.setAll(parsedData);
+
+    series.appear(1000);
+    chart.appear(1000, 100);
+  });
+}
+
+function parseCSV(text) {
+  // very simple CSV parser for demo: category,value
+  return text.split("\n").map(line => {
+    const [category, value] = line.split(",");
+    return { category, value: parseFloat(value) };
+  }).filter(row => row.category && !isNaN(row.value));
+}
+
+/* ===============================
+   Event bindings
+================================*/
+document.getElementById("projectSelect").addEventListener("change", e => {
+  if (e.target.value === "__new__") {
+    const name = prompt("Enter new project name:");
+    if (name) {
+      const projects = getProjects();
+      projects[name] = {};
+      saveProjects(projects);
+      populateProjects();
+      document.getElementById("projectSelect").value = name;
+      populateUploads(name);
+    }
+  } else {
+    populateUploads(e.target.value);
+  }
+});
+
+document.getElementById("uploadSelect").addEventListener("change", e => {
+  if (e.target.value === "__new__") {
+    const project = document.getElementById("projectSelect").value;
+    const name = prompt("Enter new upload name:");
+    if (name) {
+      const projects = getProjects();
+      projects[project][name] = {};
+      saveProjects(projects);
+      populateUploads(project);
+      document.getElementById("uploadSelect").value = name;
+    }
+  }
+});
+
+["dataLog","signalList","eventLog","switchLog","alarmLog"].forEach(id => {
+  document.getElementById(id).addEventListener("change", e => {
+    handleFileChange(id.charAt(0).toUpperCase() + id.slice(1), e.target.files[0]);
+  });
+});
+
+document.getElementById("generateGraph").addEventListener("click", generateGraph);
+
+/* ===============================
+   Init
+================================*/
+populateProjects();
+</script>
+
+</body>
+</html>
