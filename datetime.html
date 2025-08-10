@@ -16,6 +16,9 @@
   <script>
     let pyodideReadyPromise = loadPyodide({
       indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+    }).then(async (pyodide) => {
+      await pyodide.loadPackage(['pandas']);
+      return pyodide;
     });
 
     async function runPythonScript(originalCsvText) {
