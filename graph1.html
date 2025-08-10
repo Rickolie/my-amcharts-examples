@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Signal Data Graph with Legend</title>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  input[type="file"] { display: block; margin-bottom: 10px; }
+  #signalListContainer { margin: 15px 0; }
+  label.signal { display: block; margin: 3px 0; }
+  #chartdiv { width: 100%; height: 500px; margin-top: 20px; }
+  #legenddiv { width: 100%; margin-top: 10px; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Signal Data Graph</h1>
+<h5>Please be aware that the files should have the correct datetime format: 2025-08-04T04:29:52.600. Import them into datetime page first</h5>
+
+<label>DataLog:</label>
+<input type="file" id="dataLog">
+
+<label>SignalList:</label>
+<input type="file" id="signalList">
+
+<label>EventLog:</label>
+<input type="file" id="eventLog">
+
+<label>SwitchLog:</label>
+<input type="file" id="switchLog">
+
+<label>AlarmLog:</label>
+<input type="file" id="alarmLog">
+
+<div id="signalListContainer"></div>
+
+<div id="chartdiv"></div>
+<div id="legenddiv"></div>
+
+<script>
+let dataLogData = [];
+let signalNames = [];
+let eventData = [];
+let switchData = [];
+let alarmData = [];
+let chart, xAxis, yAxis, root;
+let activeSeries = {};
+const SIGNAL_START_COL = 4;
+
+// Color palette for series (more varied)
+const colors = [
+  0xff0000, // red
+  0x00ff00, // green
+  0x0000ff, // blue
+  0xffa500, // orange
+  0x800080, // purple
+  0x00ffff, // cyan
+  0xff69b4, // pink
+  0x808000, // olive
+  0x008080, // teal
+  0x000000, // black
+];
+
+function readFile(file, callback) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => callback(e.target.result);
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  return text.trim().split("\n").map(line => line.split(","));
+}
+
+function parseDate(dateStr) {
+  return new Date(dateStr);
+}
+
+function initChart() {
+  am5.ready(function() {
+    root = am5.Root.new("chartdiv");
+    root.setThemes([am5themes_Animated.new(root)]);
+    chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
+    }));
+
+    xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      baseInterval: { timeUnit: "second", count: 1 },
+      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 50 }),
+      tooltip: am5.Tooltip.new(root, {})
+    }));
+
+    yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
+
+    // Create legend in the separate div under the chart
+    let legendContainer = document.getElementById("legenddiv");
+    let legend = am5.Legend.new(root, {
+      container: am5.Container.new(root, {}),
+      layout: root.horizontalLayout,
+      centerX: am5.p50,
+      x: am5.p50
+    });
+    legendContainer.appendChild(legend.dom);
+    chart.legend = legend;
+  });
+}
+
+function updateSignalCheckboxes() {
+  const container = document.getElementById("signalListContainer");
+  container.innerHTML = "<h3>Select Signals:</h3>";
+  signalNames.forEach((name, index) => {
+    const colIndex = SIGNAL_START_COL + index;
+    const label = document.createElement("label");
+    label.className = "signal";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.index = colIndex;
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        addSeries(colIndex);
+      } else {
+        removeSeries(colIndex);
+      }
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + name));
+    container.appendChild(label);
+  });
+}
+
+function addSeries(colIndex) {
+  if (activeSeries[colIndex]) return;
+
+  // Pick color cycling through colors array
+  const colorIndex = Object.keys(activeSeries).length % colors.length;
+  const seriesColor = am5.color(colors[colorIndex]);
+
+  let series = chart.series.push(am5xy.LineSeries.new(root, {
+    name: signalNames[colIndex - SIGNAL_START_COL],
+    xAxis: xAxis,
+    yAxis: yAxis,
+    valueYField: "col" + colIndex,
+    valueXField: "date",
+    tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" }),
+    stroke: seriesColor,
+    fill: seriesColor
+  }));
+
+  // Style the bullets or line
+  series.strokes.template.setAll({ strokeWidth: 2 });
+
+  let dataset = dataLogData.slice(1).map(row => {
+    return {
+      date: parseDate(row[0]).getTime(),
+      ["col" + colIndex]: parseFloat(row[colIndex])
+    };
+  });
+
+  series.data.setAll(dataset);
+  activeSeries[colIndex] = series;
+
+  // Update legend data to show active series only
+  chart.legend.data.setAll(chart.series.values);
+}
+
+function removeSeries(colIndex) {
+  if (!activeSeries[colIndex]) return;
+  chart.series.removeValue(activeSeries[colIndex]);
+  delete activeSeries[colIndex];
+
+  // Update legend data
+  chart.legend.data.setAll(chart.series.values);
+}
+
+function addEventMarkers() {
+  function plotEvents(events, color, name) {
+    if (!events.length) return;
+    let series = chart.series.push(am5xy.ColumnSeries.new(root, {
+      name: name,
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "marker",
+      valueXField: "date",
+      clustered: false,
+      tooltip: am5.Tooltip.new(root, { labelText: "{desc}" })
+    }));
+
+    series.columns.template.setAll({
+      width: am5.percent(1),
+      fill: am5.color(color),
+      stroke: am5.color(color)
+    });
+
+    let dataset = events.map(ev => ({
+      date: parseDate(ev.time).getTime(),
+      marker: 0,
+      desc: ev.description
+    }));
+
+    series.data.setAll(dataset);
+  }
+
+  plotEvents(eventData, 0xff0000, "Event");
+  plotEvents(switchData, 0x0000ff, "Switch");
+  plotEvents(alarmData, 0xffa500, "Alarm");
+}
+
+// File upload handlers
+document.getElementById("dataLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    dataLogData = parseCSV(text);
+    if (signalNames.length > 0) updateSignalCheckboxes();
+  });
+});
+
+document.getElementById("signalList").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    signalNames = parsed.map(row => row[1] || row[0]);
+    if (dataLogData.length > 0) updateSignalCheckboxes();
+  });
+});
+
+document.getElementById("eventLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    eventData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
+  });
+});
+
+document.getElementById("switchLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    switchData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
+  });
+});
+
+document.getElementById("alarmLog").addEventListener("change", e => {
+  readFile(e.target.files[0], text => {
+    let parsed = parseCSV(text);
+    alarmData = parsed.map(row => ({
+      time: row[0],
+      description: row[1] || ""
+    }));
+    addEventMarkers();
+  });
+});
+
+initChart();
+</script>
+
+</body>
+</html>
