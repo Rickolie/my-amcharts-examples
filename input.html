@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Signal Data Graph with Events</title>
+<title>Signal Data Graph with Time Axis</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
@@ -58,6 +58,11 @@ function parseCSV(text) {
   return text.trim().split("\n").map(line => line.split(","));
 }
 
+function parseDate(dateStr) {
+  // Works for "YYYY-MM-DD HH:mm:ss" style
+  return new Date(dateStr);
+}
+
 function initChart() {
   am5.ready(function() {
     let root = am5.Root.new("chartdiv");
@@ -66,9 +71,10 @@ function initChart() {
       panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
     }));
 
-    xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
-      categoryField: "time",
-      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 50 })
+    xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      baseInterval: { timeUnit: "second", count: 1 },
+      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 50 }),
+      tooltip: am5.Tooltip.new(root, {})
     }));
 
     yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
@@ -108,12 +114,15 @@ function addSeries(colIndex) {
     xAxis: xAxis,
     yAxis: yAxis,
     valueYField: "col" + colIndex,
-    categoryXField: "time",
+    valueXField: "date",
     tooltip: am5.Tooltip.new(chart.root, { labelText: "{name}: {valueY}" })
   }));
 
   let dataset = dataLogData.slice(1).map(row => {
-    return { time: row[0], ["col" + colIndex]: parseFloat(row[colIndex]) };
+    return {
+      date: parseDate(row[0]).getTime(),
+      ["col" + colIndex]: parseFloat(row[colIndex])
+    };
   });
 
   series.data.setAll(dataset);
@@ -127,7 +136,6 @@ function removeSeries(colIndex) {
 }
 
 function addEventMarkers() {
-  // Generic function for plotting events
   function plotEvents(events, color, name) {
     if (!events.length) return;
     let series = chart.series.push(am5xy.ColumnSeries.new(chart.root, {
@@ -135,20 +143,20 @@ function addEventMarkers() {
       xAxis: xAxis,
       yAxis: yAxis,
       valueYField: "marker",
-      categoryXField: "time",
+      valueXField: "date",
       clustered: false,
       tooltip: am5.Tooltip.new(chart.root, { labelText: "{desc}" })
     }));
 
     series.columns.template.setAll({
-      width: am5.percent(2),
+      width: am5.percent(1),
       fill: am5.color(color),
       stroke: am5.color(color)
     });
 
     let dataset = events.map(ev => ({
-      time: ev.time,
-      marker: 0, // baseline
+      date: parseDate(ev.time).getTime(),
+      marker: 0,
       desc: ev.description
     }));
 
@@ -160,7 +168,7 @@ function addEventMarkers() {
   plotEvents(alarmData, 0xffa500, "Alarm");
 }
 
-// File upload handlers
+// File handlers
 document.getElementById("dataLog").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     dataLogData = parseCSV(text);
