@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>amCharts 5 Legend Under Chart Example</title>
+<title>amCharts 5 Legend Test</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
 <style>
   #chartdiv {
     width: 100%;
-    height: 500px;
-    margin: 0 auto;
+    height: 400px;
+    margin: 20px auto;
   }
 </style>
 </head>
@@ -20,20 +20,16 @@
 
 <script>
 am5.ready(function() {
-  // Create root and chart
   var root = am5.Root.new("chartdiv");
   root.setThemes([am5themes_Animated.new(root)]);
 
   var chart = root.container.children.push(
     am5xy.XYChart.new(root, {
-      panX: true,
-      panY: true,
-      wheelX: "panX",
-      wheelY: "zoomX"
+      panX: true, panY: true,
+      wheelX: "panX", wheelY: "zoomX"
     })
   );
 
-  // Create axes
   var xAxis = chart.xAxes.push(
     am5xy.DateAxis.new(root, {
       baseInterval: { timeUnit: "second", count: 1 },
@@ -48,75 +44,13 @@ am5.ready(function() {
     })
   );
 
-  // Create legend container under the chart with marginTop
-  var legendContainer = root.container.children.push(
-    am5.Container.new(root, {
-      width: am5.percent(100),
-      layout: root.horizontalLayout,
-      paddingTop: 15,
-      paddingBottom: 5,
-      y: am5.p100,
-      centerX: am5.p50,
-      x: am5.p50
-    })
-  );
-
-  // Create legend inside that container
-  var legend = legendContainer.children.push(
-    am5.Legend.new(root, {
-      centerX: am5.p50,
-      x: am5.p50,
-      layout: root.horizontalLayout,
-      useDefaultMarker: true
-    })
-  );
-
-  // Create series 1
   var series1 = chart.series.push(
     am5xy.LineSeries.new(root, {
-      name: "Series A",
+      name: "Series One",
       xAxis: xAxis,
       yAxis: yAxis,
       valueYField: "value",
       valueXField: "date",
-      stroke: am5.color(0x1f77b4),
+      stroke: am5.color(0xff0000),
       tooltip: am5.Tooltip.new(root, { labelText: "{name}: {value}" })
     })
-  );
-
-  // Create series 2
-  var series2 = chart.series.push(
-    am5xy.LineSeries.new(root, {
-      name: "Series B",
-      xAxis: xAxis,
-      yAxis: yAxis,
-      valueYField: "value",
-      valueXField: "date",
-      stroke: am5.color(0xff7f0e),
-      tooltip: am5.Tooltip.new(root, { labelText: "{name}: {value}" })
-    })
-  );
-
-  // Set data
-  var data = [];
-  var now = Date.now();
-  for (var i = 0; i < 20; i++) {
-    data.push({
-      date: now + i * 1000,
-      valueA: Math.sin(i / 2) * 10 + 20,
-      valueB: Math.cos(i / 3) * 10 + 30
-    });
-  }
-
-  // Map data for each series
-  series1.data.setAll(data.map(d => ({ date: d.date, value: d.valueA })));
-  series2.data.setAll(data.map(d => ({ date: d.date, value: d.valueB })));
-
-  // Link legend to series
-  legend.data.setAll(chart.series.values);
-
-});
-</script>
-
-</body>
-</html>
