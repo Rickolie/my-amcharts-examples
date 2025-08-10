@@ -2,215 +2,120 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Signal Data Graph with Legend</title>
+<title>amCharts 5 Legend Under Chart Example</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
 <style>
-  body { font-family: Arial, sans-serif; margin: 20px; }
-  input[type="file"] { display: block; margin-bottom: 10px; }
-  #signalListContainer { margin: 15px 0; }
-  label.signal { display: block; margin: 3px 0; }
-  #chartdiv { width: 100%; height: 500px; margin-top: 20px; }
-  #legenddiv {
+  #chartdiv {
     width: 100%;
-    text-align: center;
-    margin-top: 10px;
+    height: 500px;
+    margin: 0 auto;
   }
 </style>
 </head>
 <body>
 
-<h1>Signal Data Graph</h1>
-<h5>Please be aware that the files should have the correct datetime format: 2025-08-04T04:29:52.600. Import them into datetime page first</h5>
-
-<label>DataLog:</label>
-<input type="file" id="dataLog">
-
-<label>SignalList:</label>
-<input type="file" id="signalList">
-
-<label>EventLog:</label>
-<input type="file" id="eventLog">
-
-<label>SwitchLog:</label>
-<input type="file" id="switchLog">
-
-<label>AlarmLog:</label>
-<input type="file" id="alarmLog">
-
-<div id="signalListContainer"></div>
-
 <div id="chartdiv"></div>
 
 <script>
-let dataLogData = [];
-let signalNames = [];
-let eventData = [];
-let switchData = [];
-let alarmData = [];
-let chart, xAxis, yAxis, root;
-let activeSeries = {};
-const SIGNAL_START_COL = 4;
+am5.ready(function() {
+  // Create root and chart
+  var root = am5.Root.new("chartdiv");
+  root.setThemes([am5themes_Animated.new(root)]);
 
-// Distinct colors for lines
-const colors = [
-  0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
-  0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
-  0xa55194, 0xb5bd61, 0xc49c94, 0xf7b6d2, 0xc7c7c7
-].map(c => am5.color(c));
+  var chart = root.container.children.push(
+    am5xy.XYChart.new(root, {
+      panX: true,
+      panY: true,
+      wheelX: "panX",
+      wheelY: "zoomX"
+    })
+  );
 
-function readFile(file, callback) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => callback(e.target.result);
-  reader.readAsText(file);
-}
-
-function parseCSV(text) {
-  return text.trim().split("\n").map(line => line.split(","));
-}
-
-function parseDate(dateStr) {
-  return new Date(dateStr);
-}
-
-function initChart() {
-  am5.ready(function() {
-    root = am5.Root.new("chartdiv");
-    root.setThemes([am5themes_Animated.new(root)]);
-    chart = root.container.children.push(am5xy.XYChart.new(root, {
-      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
-    }));
-
-    xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+  // Create axes
+  var xAxis = chart.xAxes.push(
+    am5xy.DateAxis.new(root, {
       baseInterval: { timeUnit: "second", count: 1 },
       renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 50 }),
       tooltip: am5.Tooltip.new(root, {})
-    }));
+    })
+  );
 
-    yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+  var yAxis = chart.yAxes.push(
+    am5xy.ValueAxis.new(root, {
       renderer: am5xy.AxisRendererY.new(root, {})
-    }));
+    })
+  );
 
-    // Create legend below chart
-    const legendContainer = root.container.children.push(am5.Container.new(root, {
-      layout: root.horizontalLayout,
+  // Create legend container under the chart with marginTop
+  var legendContainer = root.container.children.push(
+    am5.Container.new(root, {
       width: am5.percent(100),
-      paddingTop: 10,
+      layout: root.horizontalLayout,
+      paddingTop: 15,
+      paddingBottom: 5,
       y: am5.p100,
       centerX: am5.p50,
       x: am5.p50
-    }));
+    })
+  );
 
-    let legend = legendContainer.children.push(am5.Legend.new(root, {
+  // Create legend inside that container
+  var legend = legendContainer.children.push(
+    am5.Legend.new(root, {
       centerX: am5.p50,
       x: am5.p50,
       layout: root.horizontalLayout,
       useDefaultMarker: true
-    }));
+    })
+  );
 
-    chart.legend = legend;
-  });
-}
+  // Create series 1
+  var series1 = chart.series.push(
+    am5xy.LineSeries.new(root, {
+      name: "Series A",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "value",
+      valueXField: "date",
+      stroke: am5.color(0x1f77b4),
+      tooltip: am5.Tooltip.new(root, { labelText: "{name}: {value}" })
+    })
+  );
 
-function updateSignalCheckboxes() {
-  const container = document.getElementById("signalListContainer");
-  container.innerHTML = "<h3>Select Signals:</h3>";
-  signalNames.forEach((name, index) => {
-    const colIndex = SIGNAL_START_COL + index;
-    const label = document.createElement("label");
-    label.className = "signal";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.dataset.index = colIndex;
-    cb.addEventListener("change", () => {
-      if (cb.checked) {
-        addSeries(colIndex);
-      } else {
-        removeSeries(colIndex);
-      }
-    });
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(" " + name));
-    container.appendChild(label);
-  });
-}
+  // Create series 2
+  var series2 = chart.series.push(
+    am5xy.LineSeries.new(root, {
+      name: "Series B",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "value",
+      valueXField: "date",
+      stroke: am5.color(0xff7f0e),
+      tooltip: am5.Tooltip.new(root, { labelText: "{name}: {value}" })
+    })
+  );
 
-function addSeries(colIndex) {
-  if (activeSeries[colIndex]) return;
-
-  const colorIndex = Object.keys(activeSeries).length % colors.length;
-  const seriesColor = colors[colorIndex];
-
-  let series = chart.series.push(am5xy.LineSeries.new(root, {
-    name: signalNames[colIndex - SIGNAL_START_COL],
-    xAxis: xAxis,
-    yAxis: yAxis,
-    valueYField: "col" + colIndex,
-    valueXField: "date",
-    tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" }),
-    stroke: seriesColor,
-    fill: am5.color(0x000000, 0) // no fill under line
-  }));
-
-  // Set stroke width & color explicitly
-  series.strokes.template.setAll({
-    strokeWidth: 2,
-    stroke: seriesColor
-  });
-
-  let dataset = dataLogData.slice(1).map(row => ({
-    date: parseDate(row[0]).getTime(),
-    ["col" + colIndex]: parseFloat(row[colIndex])
-  }));
-
-  series.data.setAll(dataset);
-  activeSeries[colIndex] = series;
-
-  // Update legend data
-  chart.legend.data.setAll(chart.series.values);
-
-  // Style legend markers with correct color
-  let legendItem = chart.legend.dataItems.find(item => item.dataContext === series);
-  if (legendItem) {
-    legendItem.get("marker").children.each(markerChild => {
-      markerChild.setAll({
-        fill: seriesColor,
-        stroke: seriesColor
-      });
+  // Set data
+  var data = [];
+  var now = Date.now();
+  for (var i = 0; i < 20; i++) {
+    data.push({
+      date: now + i * 1000,
+      valueA: Math.sin(i / 2) * 10 + 20,
+      valueB: Math.cos(i / 3) * 10 + 30
     });
   }
-}
 
-function removeSeries(colIndex) {
-  if (!activeSeries[colIndex]) return;
-  chart.series.removeValue(activeSeries[colIndex]);
-  delete activeSeries[colIndex];
+  // Map data for each series
+  series1.data.setAll(data.map(d => ({ date: d.date, value: d.valueA })));
+  series2.data.setAll(data.map(d => ({ date: d.date, value: d.valueB })));
 
-  chart.legend.data.setAll(chart.series.values);
-}
+  // Link legend to series
+  legend.data.setAll(chart.series.values);
 
-function addEventMarkers() {
-  // (Optional: you can keep or remove this part if you want event markers)
-}
-
-document.getElementById("dataLog").addEventListener("change", e => {
-  readFile(e.target.files[0], text => {
-    dataLogData = parseCSV(text);
-    if (signalNames.length > 0) updateSignalCheckboxes();
-  });
 });
-
-document.getElementById("signalList").addEventListener("change", e => {
-  readFile(e.target.files[0], text => {
-    let parsed = parseCSV(text);
-    signalNames = parsed.map(row => row[1] || row[0]);
-    if (dataLogData.length > 0) updateSignalCheckboxes();
-  });
-});
-
-initChart();
 </script>
 
 </body>
