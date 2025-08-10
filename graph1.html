@@ -42,7 +42,6 @@
 <div id="signalListContainer"></div>
 
 <div id="chartdiv"></div>
-<div id="legenddiv"></div>
 
 <script>
 let dataLogData = [];
@@ -54,7 +53,7 @@ let chart, xAxis, yAxis, root;
 let activeSeries = {};
 const SIGNAL_START_COL = 4;
 
-// A bigger palette for more varied colors
+// Distinct colors for lines
 const colors = [
   0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
   0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
@@ -94,7 +93,7 @@ function initChart() {
       renderer: am5xy.AxisRendererY.new(root, {})
     }));
 
-    // Create a legend container below the chart
+    // Create legend below chart
     const legendContainer = root.container.children.push(am5.Container.new(root, {
       layout: root.horizontalLayout,
       width: am5.percent(100),
@@ -152,14 +151,10 @@ function addSeries(colIndex) {
     valueXField: "date",
     tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" }),
     stroke: seriesColor,
+    fill: am5.color(0x000000, 0) // no fill under line
   }));
 
-  series.fills.template.setAll({
-    fillOpacity: 0.2,
-    visible: true,
-    fill: seriesColor
-  });
-
+  // Set stroke width & color explicitly
   series.strokes.template.setAll({
     strokeWidth: 2,
     stroke: seriesColor
@@ -173,10 +168,10 @@ function addSeries(colIndex) {
   series.data.setAll(dataset);
   activeSeries[colIndex] = series;
 
-  // Add series to legend
+  // Update legend data
   chart.legend.data.setAll(chart.series.values);
 
-  // Now style legend marker after adding series to legend data
+  // Style legend markers with correct color
   let legendItem = chart.legend.dataItems.find(item => item.dataContext === series);
   if (legendItem) {
     legendItem.get("marker").children.each(markerChild => {
@@ -197,39 +192,9 @@ function removeSeries(colIndex) {
 }
 
 function addEventMarkers() {
-  function plotEvents(events, color, name) {
-    if (!events.length) return;
-    let series = chart.series.push(am5xy.ColumnSeries.new(root, {
-      name: name,
-      xAxis: xAxis,
-      yAxis: yAxis,
-      valueYField: "marker",
-      valueXField: "date",
-      clustered: false,
-      tooltip: am5.Tooltip.new(root, { labelText: "{desc}" })
-    }));
-
-    series.columns.template.setAll({
-      width: am5.percent(1),
-      fill: am5.color(color),
-      stroke: am5.color(color)
-    });
-
-    let dataset = events.map(ev => ({
-      date: parseDate(ev.time).getTime(),
-      marker: 0,
-      desc: ev.description
-    }));
-
-    series.data.setAll(dataset);
-  }
-
-  plotEvents(eventData, 0xff0000, "Event");
-  plotEvents(switchData, 0x0000ff, "Switch");
-  plotEvents(alarmData, 0xffa500, "Alarm");
+  // (Optional: you can keep or remove this part if you want event markers)
 }
 
-// File upload handlers
 document.getElementById("dataLog").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     dataLogData = parseCSV(text);
@@ -242,39 +207,6 @@ document.getElementById("signalList").addEventListener("change", e => {
     let parsed = parseCSV(text);
     signalNames = parsed.map(row => row[1] || row[0]);
     if (dataLogData.length > 0) updateSignalCheckboxes();
-  });
-});
-
-document.getElementById("eventLog").addEventListener("change", e => {
-  readFile(e.target.files[0], text => {
-    let parsed = parseCSV(text);
-    eventData = parsed.map(row => ({
-      time: row[0],
-      description: row[1] || ""
-    }));
-    addEventMarkers();
-  });
-});
-
-document.getElementById("switchLog").addEventListener("change", e => {
-  readFile(e.target.files[0], text => {
-    let parsed = parseCSV(text);
-    switchData = parsed.map(row => ({
-      time: row[0],
-      description: row[1] || ""
-    }));
-    addEventMarkers();
-  });
-});
-
-document.getElementById("alarmLog").addEventListener("change", e => {
-  readFile(e.target.files[0], text => {
-    let parsed = parseCSV(text);
-    alarmData = parsed.map(row => ({
-      time: row[0],
-      description: row[1] || ""
-    }));
-    addEventMarkers();
   });
 });
 
