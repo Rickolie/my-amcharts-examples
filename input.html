@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Signal Data Graph with Time Axis</title>
+<meta charset="UTF-8" />
+<title>Signal Data Graph with Legend</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
@@ -17,11 +17,10 @@
 <body>
 
 <h1>Signal Data Graph</h1>
-  <h3>Please be aware that the files should have the correct datetime format: 2025-08-04T04:29:52.600. Import them into datetime page first </h3>
+  <h5>Please be aware that the files should have the correct datetime format: 2025-08-04T04:29:52.600. Import them into datetime page first </h5>
   
 <label>DataLog:</label>
 <input type="file" id="dataLog">
-
 
 <label>SignalList:</label>
 <input type="file" id="signalList">
@@ -45,7 +44,7 @@ let signalNames = [];
 let eventData = [];
 let switchData = [];
 let alarmData = [];
-let chart, xAxis, yAxis;
+let chart, xAxis, yAxis, root;
 let activeSeries = {};
 const SIGNAL_START_COL = 3;
 
@@ -61,13 +60,12 @@ function parseCSV(text) {
 }
 
 function parseDate(dateStr) {
-  // Works for "YYYY-MM-DD HH:mm:ss" style
   return new Date(dateStr);
 }
 
 function initChart() {
   am5.ready(function() {
-    let root = am5.Root.new("chartdiv");
+    root = am5.Root.new("chartdiv");
     root.setThemes([am5themes_Animated.new(root)]);
     chart = root.container.children.push(am5xy.XYChart.new(root, {
       panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
@@ -82,6 +80,14 @@ function initChart() {
     yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
       renderer: am5xy.AxisRendererY.new(root, {})
     }));
+
+    // Add legend to chart
+    let legend = chart.children.push(am5.Legend.new(root, {
+      centerX: am5.p50,
+      x: am5.p50,
+      layout: root.horizontalLayout
+    }));
+    chart.legend = legend;
   });
 }
 
@@ -111,13 +117,13 @@ function updateSignalCheckboxes() {
 function addSeries(colIndex) {
   if (activeSeries[colIndex]) return;
 
-  let series = chart.series.push(am5xy.LineSeries.new(chart.root, {
+  let series = chart.series.push(am5xy.LineSeries.new(root, {
     name: signalNames[colIndex - SIGNAL_START_COL],
     xAxis: xAxis,
     yAxis: yAxis,
     valueYField: "col" + colIndex,
     valueXField: "date",
-    tooltip: am5.Tooltip.new(chart.root, { labelText: "{name}: {valueY}" })
+    tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" })
   }));
 
   let dataset = dataLogData.slice(1).map(row => {
@@ -129,25 +135,31 @@ function addSeries(colIndex) {
 
   series.data.setAll(dataset);
   activeSeries[colIndex] = series;
+
+  // Add series to legend
+  chart.legend.data.setAll(chart.series.values);
 }
 
 function removeSeries(colIndex) {
   if (!activeSeries[colIndex]) return;
   chart.series.removeValue(activeSeries[colIndex]);
   delete activeSeries[colIndex];
+
+  // Update legend data
+  chart.legend.data.setAll(chart.series.values);
 }
 
 function addEventMarkers() {
   function plotEvents(events, color, name) {
     if (!events.length) return;
-    let series = chart.series.push(am5xy.ColumnSeries.new(chart.root, {
+    let series = chart.series.push(am5xy.ColumnSeries.new(root, {
       name: name,
       xAxis: xAxis,
       yAxis: yAxis,
       valueYField: "marker",
       valueXField: "date",
       clustered: false,
-      tooltip: am5.Tooltip.new(chart.root, { labelText: "{desc}" })
+      tooltip: am5.Tooltip.new(root, { labelText: "{desc}" })
     }));
 
     series.columns.template.setAll({
@@ -170,7 +182,7 @@ function addEventMarkers() {
   plotEvents(alarmData, 0xffa500, "Alarm");
 }
 
-// File handlers
+// File upload handlers
 document.getElementById("dataLog").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     dataLogData = parseCSV(text);
