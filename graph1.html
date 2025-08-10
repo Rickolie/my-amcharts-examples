@@ -12,7 +12,6 @@
   #signalListContainer { margin: 15px 0; }
   label.signal { display: block; margin: 3px 0; }
   #chartdiv { width: 100%; height: 500px; margin-top: 20px; }
-  #legenddiv { width: 100%; margin-top: 10px; text-align: center; }
 </style>
 </head>
 <body>
@@ -38,7 +37,6 @@
 <div id="signalListContainer"></div>
 
 <div id="chartdiv"></div>
-<div id="legenddiv"></div>
 
 <script>
 let dataLogData = [];
@@ -46,11 +44,11 @@ let signalNames = [];
 let eventData = [];
 let switchData = [];
 let alarmData = [];
-let chart, xAxis, yAxis, root;
+let chart, xAxis, yAxis, root, legendContainer, legend;
 let activeSeries = {};
 const SIGNAL_START_COL = 4;
 
-// Color palette for series (more varied)
+// More varied color palette
 const colors = [
   0xff0000, // red
   0x00ff00, // green
@@ -83,8 +81,19 @@ function initChart() {
   am5.ready(function() {
     root = am5.Root.new("chartdiv");
     root.setThemes([am5themes_Animated.new(root)]);
-    chart = root.container.children.push(am5xy.XYChart.new(root, {
-      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX"
+
+    // Create a vertical container for chart + legend
+    let mainContainer = root.container.children.push(
+      am5.Container.new(root, {
+        layout: root.verticalLayout,
+        width: am5.percent(100),
+        height: am5.percent(100)
+      })
+    );
+
+    chart = mainContainer.children.push(am5xy.XYChart.new(root, {
+      panX: true, panY: true, wheelX: "panX", wheelY: "zoomX",
+      height: 450
     }));
 
     xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
@@ -97,15 +106,21 @@ function initChart() {
       renderer: am5xy.AxisRendererY.new(root, {})
     }));
 
-    // Create legend in the separate div under the chart
-    let legendContainer = document.getElementById("legenddiv");
-    let legend = am5.Legend.new(root, {
-      container: am5.Container.new(root, {}),
-      layout: root.horizontalLayout,
-      centerX: am5.p50,
-      x: am5.p50
-    });
-    legendContainer.appendChild(legend.dom);
+    // Legend container below the chart
+    legendContainer = mainContainer.children.push(
+      am5.Container.new(root, {
+        layout: root.horizontalLayout,
+        width: am5.percent(100),
+        centerX: am5.p50,
+        x: am5.p50,
+        paddingTop: 10
+      })
+    );
+
+    legend = legendContainer.children.push(
+      am5.Legend.new(root, {})
+    );
+
     chart.legend = legend;
   });
 }
@@ -151,20 +166,16 @@ function addSeries(colIndex) {
     fill: seriesColor
   }));
 
-  // Style the bullets or line
   series.strokes.template.setAll({ strokeWidth: 2 });
 
-  let dataset = dataLogData.slice(1).map(row => {
-    return {
-      date: parseDate(row[0]).getTime(),
-      ["col" + colIndex]: parseFloat(row[colIndex])
-    };
-  });
+  let dataset = dataLogData.slice(1).map(row => ({
+    date: parseDate(row[0]).getTime(),
+    ["col" + colIndex]: parseFloat(row[colIndex])
+  }));
 
   series.data.setAll(dataset);
   activeSeries[colIndex] = series;
 
-  // Update legend data to show active series only
   chart.legend.data.setAll(chart.series.values);
 }
 
@@ -172,8 +183,6 @@ function removeSeries(colIndex) {
   if (!activeSeries[colIndex]) return;
   chart.series.removeValue(activeSeries[colIndex]);
   delete activeSeries[colIndex];
-
-  // Update legend data
   chart.legend.data.setAll(chart.series.values);
 }
 
