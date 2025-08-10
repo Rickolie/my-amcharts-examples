@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Signal Viewer</title>
+<title>Signal Data Graph</title>
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
@@ -39,9 +39,10 @@
 
 <script>
 let dataLogData = [];
-let signalNames = [];
+let signalNames = []; // Only signals starting from 4th column
 let chart, xAxis, yAxis;
 let activeSeries = {};
+const SIGNAL_START_COL = 3; // zero-based index for first signal column
 
 function readFile(file, callback) {
   if (!file) return;
@@ -77,17 +78,17 @@ function updateSignalCheckboxes() {
   const container = document.getElementById("signalListContainer");
   container.innerHTML = "<h3>Select Signals:</h3>";
   signalNames.forEach((name, index) => {
-    if (index === 0) return; // index 0 is timestamp or time
+    const colIndex = SIGNAL_START_COL + index;
     const label = document.createElement("label");
     label.className = "signal";
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.dataset.index = index;
+    cb.dataset.index = colIndex;
     cb.addEventListener("change", () => {
       if (cb.checked) {
-        addSeries(index);
+        addSeries(colIndex);
       } else {
-        removeSeries(index);
+        removeSeries(colIndex);
       }
     });
     label.appendChild(cb);
@@ -100,7 +101,7 @@ function addSeries(colIndex) {
   if (activeSeries[colIndex]) return;
 
   let series = chart.series.push(am5xy.LineSeries.new(chart.root, {
-    name: signalNames[colIndex],
+    name: signalNames[colIndex - SIGNAL_START_COL],
     xAxis: xAxis,
     yAxis: yAxis,
     valueYField: "col" + colIndex,
@@ -124,7 +125,6 @@ function removeSeries(colIndex) {
 document.getElementById("dataLog").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     dataLogData = parseCSV(text);
-    // If signalNames already loaded, update checkboxes
     if (signalNames.length > 0) updateSignalCheckboxes();
   });
 });
@@ -132,14 +132,13 @@ document.getElementById("dataLog").addEventListener("change", e => {
 document.getElementById("signalList").addEventListener("change", e => {
   readFile(e.target.files[0], text => {
     let parsed = parseCSV(text);
-    // Assuming first column = signal ID, second = name
-    // We'll just map them in order for simplicity
+    // Assume first column is ID, second column is Name
+    // We take them in order, mapping to DataLog columns starting at SIGNAL_START_COL
     signalNames = parsed.map(row => row[1] || row[0]);
     if (dataLogData.length > 0) updateSignalCheckboxes();
   });
 });
 
-// Initialize chart on page load
 initChart();
 </script>
 
