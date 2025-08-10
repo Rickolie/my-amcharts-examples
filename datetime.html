@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CSV DateTime Corrector</title>
+</head>
+<body>
+<h2>Upload CSV Files</h2>
+<label>Original CSV: <input type="file" id="originalFile" accept=".csv"></label><br><br>
+<label>Corrected CSV: <input type="file" id="correctedFile" accept=".csv"></label><br><br>
+<button id="runBtn">Run Script</button>
+<a id="downloadLink" style="display:none;">Download Corrected File</a>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+<script>
+let pyodideReady = loadPyodide({indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"});
+
+async function runPythonScript(originalCsvText, correctedCsvText) {
+    let pyodide = await pyodideReady;
+    
+    // Write files to Pyodide's virtual filesystem
+    pyodide.FS.mkdirTree('/content');
+    pyodide.FS.writeFile('/content/DataLog.csv', originalCsvText);
+    pyodide.FS.writeFile('/content/data_with_datetime1.csv', correctedCsvText);
+
+    const pythonCode = `
+import pandas as pd
+import csv
+from datetime import datetime, timedelta
+
+csv_original_filename = '/content/DataLog.csv'
+csv_corrected_filename = '/content/data_with_datetime1.csv'
+output_filename = '/content/output.csv'
+
+try:
+    df_corrected = pd.read_csv(csv_corrected_filename)
+    df_corrected['datetime'] = pd.to_datetime(df_corrected['datetime'], errors='coerce')
+    df_corrected.dropna(subset=['datetime'], inplace=True)
+
+    original_data_for_merge = []
+    with open(csv_original_filename, 'r') as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            if not row or row[0].strip().startswith('//'):
+                continue
+            if len(row) > 2:
+                original_data_for_merge.append({'Original_Date': row[1], 'Original_UTC_Time': row[2]})
+
+    df_original_datetime_info = pd.DataFrame(original_data_for_merge)
+
+    if len(df_original_datetime_info) == len(df_corrected):
+        df_merged = pd.concat([df_corrected.reset_index(drop=True), df_original_datetime_info], axis=1)
+        df_merged['Original_Date_Parsed'] = pd.to_datetime(df_merged['Original_Date'], format='%m/%d/%Y', errors='coerce')
+        df_merged.dropna(subset=['Original_Date_Parsed'], inplace=True)
+
+        def calculate_running_seconds(time_str):
+            try:
+                time_parts = time_str.replace('.', ':').split(':')
+                if len(time_parts) >= 3:
+                    minutes_part = int(time_parts[0])
+                    seconds_part = int(time_parts[1])
+                    milliseconds_part_str = time_parts[2]
+                    milliseconds_part = int(milliseconds_part_str.ljust(6, '0')[:6])
+                    total_seconds = minutes_part * 60 + seconds_part + milliseconds_part / 1000000.0
+                    return total_seconds
+                else:
+                    return None
+            except:
+                return None
+
+        df_merged['running_seconds'] = df_merged['Original_UTC_Time'].apply(calculate_running_seconds)
+        df_merged.dropna(subset=['running_seconds'], inplace=True)
+
+        df_merged['date_changed'] = df_merged['Original_Date_Parsed'].diff() > timedelta(days=0)
+        df_merged['time_reset'] = df_merged['running_seconds'].diff() < -60
+        df_merged['new_hour_sequence_start'] = (df_merged['date_changed']) | (df_merged['time_reset'])
+        df_merged.loc[0, 'new_hour_sequence_start'] = True
+        df_merged['assigned_hour'] = df_merged['new_hour_sequence_start'].cumsum() - 1
+
+        def reconstruct_datetime(row):
+            original_date = row['Original_Date_Parsed']
+            assigned_hour = row['assigned_hour']
+            running_seconds = row['running_seconds']
+            if pd.notna(original_date) and pd.notna(assigned_hour) and pd.notna(running_seconds):
+                total_seconds = assigned_hour * 3600 + running_seconds
+                time_delta = timedelta(seconds=total_seconds)
+                return original_date + time_delta
+            else:
+                return pd.NaT
+
+        df_merged['datetime_corrected'] = df_merged.apply(reconstruct_datetime, axis=1)
+
+        df_output = df_merged.drop(columns=['datetime', 'Original_Date', 'Original_UTC_Time',
+                                            'Original_Date_Parsed', 'running_seconds',
+                                            'date_changed', 'time_reset', 'new_hour_sequence_start',
+                                            'assigned_hour'])
+        df_output.rename(columns={'datetime_corrected': 'datetime'}, inplace=True)
+        df_output.dropna(subset=['datetime'], inplace=True)
+        df_output = df_output.sort_values(by='datetime').reset_index(drop=True)
+
+        date_change_indices_output = df_output[df_output['datetime'].dt.date.diff() > timedelta(days=0)].index
+        if not date_change_indices_output.empty:
+            first_date_change_index_output = date_change_indices_output[0]
+            if first_date_change_index_output > 0:
+                hour_before_change = df_output.loc[first_date_change_index_output - 1, 'datetime'].hour
+                if hour_before_change != 23:
+                    hour_shift = 23 - hour_before_change
+                    df_output['datetime'] = df_output['datetime'] + timedelta(hours=hour_shift)
+
+        previous_date = None
+        rows_to_add_day_offset = []
+        for index, row in df_output.iterrows():
+            current_date = row['datetime'].date()
+            if previous_date is not None:
+                date_difference = (current_date - previous_date).days
+                if date_difference > 1:
+                    days_to_subtract = date_difference - 1
+                    rows_to_add_day_offset.append((index, timedelta(days=-days_to_subtract)))
+            previous_date = current_date
+
+        for start_index, day_offset in rows_to_add_day_offset:
+            df_output.loc[start_index:, 'datetime'] = df_output.loc[start_index:, 'datetime'] + day_offset
+
+        df_output['datetime'] = df_output['datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S.%f').str[:-3]
+        cols = ['datetime'] + [col for col in df_output.columns if col != 'datetime']
+        df_output = df_output[cols]
+
+        df_output.to_csv(output_filename, index=False)
+    else:
+        print("Row count mismatch between original and corrected CSVs.")
+except Exception as e:
+    print(f"Error: {e}")
+`;
+
+    await pyodide.runPythonAsync(pythonCode);
+
+    // Get processed file
+    let outputCsv = pyodide.FS.readFile('/content/output.csv', { encoding: 'utf8' });
+    return outputCsv;
+}
+
+document.getElementById('runBtn').onclick = async () => {
+    let origFile = document.getElementById('originalFile').files[0];
+    let corrFile = document.getElementById('correctedFile').files[0];
+    if (!origFile || !corrFile) {
+        alert("Please select both files.");
+        return;
+    }
+
+    let origText = await origFile.text();
+    let corrText = await corrFile.text();
+    
+    console.log("Running Python script in Pyodide...");
+    let resultCsv = await runPythonScript(origText, corrText);
+    console.log("Script finished. Preparing download link...");
+
+    let blob = new Blob([resultCsv], { type: 'text/csv' });
+    let url = URL.createObjectURL(blob);
+    let link = document.getElementById('downloadLink');
+    link.href = url;
+    link.download = 'corrected.csv';
+    link.style.display = 'inline';
+    link.textContent = 'Download Corrected CSV';
+};
+</script>
+</body>
+</html>
