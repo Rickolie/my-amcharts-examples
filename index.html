@@ -1,65 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>My amCharts 5 Example</title>
-  <style>
-    #chartdiv {
-      width: 100%;
-      height: 400px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My GitHub Pages Index</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to right, #f0f4f8, #d9e2ec);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        header {
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            color: #334e68;
+        }
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        a {
+            text-decoration: none;
+            color: white;
+            background: #334e68;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            transition: background 0.3s ease;
+            font-size: 1.1rem;
+            min-width: 200px;
+        }
+        a:hover {
+            background: #243b53;
+        }
+        footer {
+            margin-top: auto;
+            padding: 1rem;
+            font-size: 0.85rem;
+            color: #627d98;
+        }
+    </style>
 </head>
 <body>
-  <h1>My amCharts 5 Example</h1>
-  <div id="chartdiv"></div>
+    <header>
+        <h1>Welcome</h1>
+        <p>Select a page below</p>
+    </header>
 
-  <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
-  <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+    <div class="links">
+        <a href="datetime.html">datetime</a>
+        <a href="input.html">Page 2</a>
+        <a href="page3.html">Page 3</a>
+    </div>
 
-  <script>
-    am5.ready(function() {
-      var root = am5.Root.new("chartdiv");
-
-      var chart = root.container.children.push(
-        am5xy.XYChart.new(root, {})
-      );
-
-      var xAxis = chart.xAxes.push(
-        am5xy.CategoryAxis.new(root, {
-          categoryField: "category",
-          renderer: am5xy.AxisRendererX.new(root, {})
-        })
-      );
-
-      var yAxis = chart.yAxes.push(
-        am5xy.ValueAxis.new(root, {
-          renderer: am5xy.AxisRendererY.new(root, {})
-        })
-      );
-
-      var series = chart.series.push(
-        am5xy.ColumnSeries.new(root, {
-          xAxis: xAxis,
-          yAxis: yAxis,
-          valueYField: "value",
-          categoryXField: "category"
-        })
-      );
-
-      series.data.setAll([
-        { category: "A", value: 10 },
-        { category: "B", value: 20 },
-        { category: "C", value: 30 }
-      ]);
-
-      xAxis.data.setAll(series.dataItems.map(function(item) {
-        return item.dataContext;
-      }));
-
-      chart.appear(1000, 100);
-    });
-  </script>
+    <footer>
+        &copy; 2025 My GitHub Pages
+    </footer>
 </body>
 </html>
-
