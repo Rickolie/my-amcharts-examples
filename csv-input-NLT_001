@@ -42,10 +42,10 @@
     }));
 
     var series = chart.series.push(am5xy.LineSeries.new(root, {
-      name: "Cabinet Temp",
+      name: "Battery current",
       xAxis: xAxis,
       yAxis: yAxis,
-      valueYField: "CABINET_TEMPERATURE",
+      valueYField: "[A*10] BATTERIES_CURRENT",
       valueXField: "datetime",
       tooltip: am5.Tooltip.new(root, { labelText: "{valueY}" })
     }));
