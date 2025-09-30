@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+  <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>CSV Example V1</title>
+  <style>
+    #chartdiv {
+      width: 100%;
+      height: 600px; /* Increased height to accommodate the legend */
+    }
+    #controls {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+      <button id="scaleYButton">Scale Y-axis to Max</button>
+  </div>
+  <div id="chartdiv"></div>
+
+  <script>
+  am5.ready(function() {
+    var root = am5.Root.new("chartdiv");
+    root.setThemes([ am5themes_Animated.new(root) ]);
+
+    var chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: true,
+      panY: true,
+      wheelX: "panX",
+      wheelY: "zoomX"
+    }));
+
+    var xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      maxDeviation: 0.2,
+      groupData: false,
+      baseInterval: { timeUnit: "millisecond", count: 1 },
+      renderer: am5xy.AxisRendererX.new(root, {}),
+      tooltip: am5.Tooltip.new(root, {})
+    }));
+
+    var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
+
+    // Add legend
+    var legend = chart.children.push(am5.Legend.new(root, {
+      centerX: am5.p50,
+      x: am5.p50,
+      // Position the legend below the chart
+      y: am5.p100,
+      centerY: am5.p0, // Adjusted centerY to position it below the chart
+      marginTop: 40 // Increased top margin
+    }));
+
+    let allData = []; // Variable to store all parsed data
+    let events = []; // Variable to store event data
+    let alarmEvents = []; // Variable to store alarm event data
+
+    // Load CSV data for the plot
+    Papa.parse("csv/dataLog_CorrectedDatetime.csv", {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        allData = results.data
+          .filter(row => row.datetime) // remove empty rows
+          .map(row => {
+            return {
+              ...row,
+              datetime: new Date(row.datetime).getTime()
+            };
+          });
+
+        if (allData.length === 0) {
+          console.error("No valid rows found in dataLog_CorrectedDatetime.csv (datetime parsing failed). Check CSV path/format.");
+          return;
+        }
+
+        // Sort data by datetime
+        allData.sort(function(a, b) {
+          return a.datetime - b.datetime;
+        });
+
+        // Get all columns except 'datetime'
+        let valueFields = Object.keys(allData[0]).filter(key => key !== 'datetime');
+
+        // Create a series for each value field
+        let seriesList = [];
+        valueFields.forEach(function(field) {
+          let series = chart.series.push(am5xy.LineSeries.new(root, {
+            name: field,
+            xAxis: xAxis,
+            yAxis: yAxis,
+            valueYField: field,
+            valueXField: "datetime",
+            tooltip: am5.Tooltip.new(root, {}), // Tooltip will show {name}: {valueY} by default
+            // Hide series by default
+            visible: false
+          }));
+          seriesList.push(series);
+          series.data.setAll(allData);
+        });
+
+        // Set data for the legend and enable checkboxes
+        legend.data.setAll(seriesList);
+        // Enable clicking on legend items to toggle visibility
+        legend.itemContainers.template.events.on("click", function(e) {
+            var series = e.target.dataItem.dataContext;
+            if (series) {
+                series.set("visible", !series.get("visible"));
+            }
+        });
+
+        // Load AlarmLog.csv for events
+        Papa.parse("csv/AlarmLog_Revised.csv", {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            complete: function(alarmResults) {
+                let alarmData = alarmResults.data
+                    .filter(row => row.datetime) // remove empty rows
+                    .map(row => {
+                        return {
+                            ...row,
+                            datetime: new Date(row.datetime).getTime()
+                        };
+                    });
+
+                if (alarmData.length === 0) {
+                    console.warn("No valid rows found in AlarmLog_Revised.csv (datetime parsing failed). No alarm events will be added.");
+                    return;
+                }
+
+                // Sort alarm data by datetime
+                alarmData.sort(function(a, b) {
+                    return a.datetime - b.datetime;
+                });
+
+                // Process alarm data to identify events
+                let currentAlarmEvent = null;
+                alarmData.forEach(function(row) {
+                    // Check if StateAfter is a number
+                    if (typeof row.StateAfter === 'number') {
+                        if (row.StateAfter > 1 && currentAlarmEvent === null) {
+                            // Start of a new alarm event
+                            currentAlarmEvent = { start: row.datetime, msgNumber: row.MsgNumber };
+                        } else if (row.StateAfter === 0 && currentAlarmEvent !== null) {
+                            // End of an alarm event
+                            currentAlarmEvent.end = row.datetime;
+                            alarmEvents.push(currentAlarmEvent);
+                            currentAlarmEvent = null;
+                        }
+                    }
+                });
+
+                // If an event was started but didn't end in the data
+                if (currentAlarmEvent !== null) {
+                    currentAlarmEvent.end = alarmData[alarmData.length - 1].datetime; // End at the last data point
+                    alarmEvents.push(currentAlarmEvent);
+                }
+
+
+                // Add axis ranges for each alarm event
+                alarmEvents.forEach(function(event) {
+                    if (event.start !== undefined && event.end !== undefined) { // Ensure start and end are defined
+                        var rangeDataItem = xAxis.makeDataItem({
+                            value: event.start,
+                            endValue: event.end
+                        });
+
+                        var range = xAxis.createAxisRange(rangeDataItem);
+
+                        rangeDataItem.get("grid").setAll({
+                            stroke: am5.color(0xff0000), // Red color for alarm events
+                            strokeOpacity: 0.5,
+                            strokeDasharray: [3]
+                        });
+
+                        rangeDataItem.get("axisFill").setAll({
+                            fill: am5.color(0xff0000), // Red color for alarm events
+                            fillOpacity: 0.1,
+                            visible: true
+                        });
+
+                        // Add a label for the event
+                        rangeDataItem.get("label").setAll({
+                          inside: true,
+                          text: "Alarm: " + event.msgNumber,
+                          rotation: 90,
+                          centerX: am5.p100,
+                          centerY: am5.p100,
+                          location: 0,
+                          paddingBottom: 10,
+                          paddingRight: 15
+                        });
+                    }
+                });
+            }
+        });
+      }
+    });
+
+    // Add button functionality
+    document.getElementById('scaleYButton').addEventListener('click', function() {
+        console.log("Scale Y-axis button clicked."); // Debugging log
+        if (allData.length === 0) {
+            console.warn("No data loaded to scale Y-axis.");
+            return;
+        }
+
+        // Find the maximum and minimum value across all visible series
+        let minValue = Infinity;
+        let maxValue = -Infinity;
+        let hasVisibleSeries = false;
+
+        chart.series.each(function(series) {
+            if (series.get("visible")) { // Only consider visible series
+                hasVisibleSeries = true;
+                series.data.each(function(dataItem) {
+                    let value = dataItem.get(series.get("valueYField"));
+                    if (value !== null && value !== undefined) {
+                        minValue = Math.min(minValue, value);
+                        maxValue = Math.max(maxValue, value);
+                    }
+                });
+            }
+        });
+
+        console.log("Calculated min value:", minValue); // Debugging log
+        console.log("Calculated max value:", maxValue); // Debugging log
+        console.log("Has visible series:", hasVisibleSeries); // Debugging log
+
+
+        // If no visible series or all values are null/undefined
+        if (!hasVisibleSeries || minValue === Infinity || maxValue === -Infinity) {
+             console.warn("No visible series with valid data to scale Y-axis.");
+             // Optionally reset axis or show a message
+             yAxis.set("min", undefined);
+             yAxis.set("max", undefined);
+             return;
+        }
+
+
+        // Add some padding to the min/max values
+        let padding = (maxValue - minValue) * 0.1; // 10% padding
+        let adjustedMinValue = minValue - padding;
+        let adjustedMaxValue = maxValue + padding;
+
+        console.log("Adjusted min value (with padding):", adjustedMinValue); // Debugging log
+        console.log("Adjusted max value (with padding):", adjustedMaxValue); // Debugging log
+
+        // Set the new range for the y-axis
+        yAxis.set("min", adjustedMinValue);
+        yAxis.set("max", adjustedMaxValue);
+
+        console.log("Y-axis min and max set."); // Debugging log
+    });
+
+    // Add scrollbar
+    // https://www.amcharts.com/docs/v5/charts/xy-chart/scrollbars/
+    chart.set("scrollbarX", am5.Scrollbar.new(root, {
+      orientation: "horizontal"
+    }));
+
+    // Make stuff animate on load
+    // https://www.amcharts.com/docs/v5/concepts/animations/
+    chart.appear(1000, 100);
+  });
+  </script>
+</body>
+</html>
