@@ -59,13 +59,9 @@
         let parsed = results.data
           .filter(row => row.datetime) // remove empty rows
           .map(row => {
-            // Convert datetime with microseconds to milliseconds only
-            // e.g. 2025-08-03T00:00:00.000000 -> 2025-08-03T00:00:00.000
-            let dt = row.datetime.replace(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d{3}$/, "$1.$2");
-
             return {
               ...row,
-              datetime: new Date(dt).getTime()
+              datetime: new Date(row.datetime).getTime()
             };
           });
 
