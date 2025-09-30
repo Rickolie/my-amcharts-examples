@@ -59,6 +59,7 @@
     }));
 
     let allData = []; // Variable to store all parsed data
+    let events = []; // Variable to store event data
 
     // Load CSV
     Papa.parse("csv/dataLog_CorrectedDatetime.csv", {
@@ -84,6 +85,64 @@
         allData.sort(function(a, b) {
           return a.datetime - b.datetime;
         });
+
+        // Extract events based on condition: [A*10] BATTERIES_CURRENT <= 100
+        let inEvent = false;
+        let eventStart = null;
+
+        allData.forEach(function(row) {
+            if (row['[A*10] BATTERIES_CURRENT'] !== null && row['[A*10] BATTERIES_CURRENT'] !== undefined && row['[A*10] BATTERIES_CURRENT'] <= 100) {
+                if (!inEvent) {
+                    eventStart = row.datetime;
+                    inEvent = true;
+                }
+            } else {
+                if (inEvent) {
+                    events.push({ start: eventStart, end: row.datetime });
+                    inEvent = false;
+                }
+            }
+        });
+
+        // If the data ends while still in an event, add the last event
+        if (inEvent && eventStart !== null) {
+             events.push({ start: eventStart, end: allData[allData.length - 1].datetime });
+        }
+
+        // Add axis ranges for each event
+        events.forEach(function(event, index) {
+            var rangeDataItem = xAxis.makeDataItem({
+                value: event.start,
+                endValue: event.end
+            });
+
+            var range = xAxis.createAxisRange(rangeDataItem);
+
+            rangeDataItem.get("grid").setAll({
+                stroke: am5.color(0xff0000), // Red color for events
+                strokeOpacity: 0.5,
+                strokeDasharray: [3]
+            });
+
+            rangeDataItem.get("axisFill").setAll({
+                fill: am5.color(0xff0000), // Red color for events
+                fillOpacity: 0.1,
+                visible: true
+            });
+
+            // Add a label for the event (optional)
+            // rangeDataItem.get("label").setAll({
+            //   inside: true,
+            //   text: "Event " + (index + 1),
+            //   rotation: 90,
+            //   centerX: am5.p100,
+            //   centerY: am5.p100,
+            //   location: 0,
+            //   paddingBottom: 10,
+            //   paddingRight: 15
+            // });
+        });
+
 
         // Get all columns except 'datetime'
         let valueFields = Object.keys(allData[0]).filter(key => key !== 'datetime');
@@ -180,75 +239,6 @@
     chart.set("scrollbarX", am5.Scrollbar.new(root, {
       orientation: "horizontal"
     }));
-
-    // Create axis ranges
-    // https://www.amcharts.com/docs/v5/charts/xy-chart/axes/axis-ranges/
-    // NOTE: The categories "2001", "2003", "2007" are examples from the amCharts documentation
-    // You will need to replace these with actual datetime values from your data if you want
-    // to highlight specific periods. The format should match your 'datetime' column.
-    // For example, if your datetime is in 'YYYY-MM-DD HH:MM:SS.ms' format,
-    // you might use values like "2025-09-28 19:39:00.000"
-
-    // Example using your data's datetime format (replace with actual points of interest)
-    var rangeDataItem = xAxis.makeDataItem({
-      value: new Date("2025-09-28 19:39:00.000").getTime(),
-      endValue: new Date("2025-09-28 19:40:00.000").getTime()
-    });
-
-    var range = xAxis.createAxisRange(rangeDataItem);
-
-    rangeDataItem.get("grid").setAll({
-      stroke: am5.color(0x00ff33),
-      strokeOpacity: 0.5,
-      strokeDasharray: [3]
-    });
-
-    rangeDataItem.get("axisFill").setAll({
-      fill: am5.color(0x00ff33),
-      fillOpacity: 0.1,
-      visible: true
-    });
-
-    rangeDataItem.get("label").setAll({
-      inside: true,
-      text: "Event 1", // Replace with your event description
-      rotation: 90,
-      centerX: am5.p100,
-      centerY: am5.p100,
-      location: 0,
-      paddingBottom: 10,
-      paddingRight: 15
-    });
-
-
-    var rangeDataItem2 = xAxis.makeDataItem({
-      value: new Date("2025-09-28 19:45:00.000").getTime() // Replace with another point of interest
-    });
-
-    var range2 = xAxis.createAxisRange(rangeDataItem2);
-
-    rangeDataItem2.get("grid").setAll({
-      stroke: am5.color(0x00ff33),
-      strokeOpacity: 1,
-      strokeDasharray: [3]
-    });
-
-    rangeDataItem2.get("axisFill").setAll({
-      fill: am5.color(0x00ff33),
-      fillOpacity: 0.1,
-      visible: true
-    });
-
-    rangeDataItem2.get("label").setAll({
-      inside: true,
-      text: "Event 2", // Replace with your event description
-      rotation: 90,
-      centerX: am5.p100,
-      centerY: am5.p100,
-      location: 0,
-      paddingBottom: 10,
-      paddingRight: 15
-    });
 
     // Make stuff animate on load
     // https://www.amcharts.com/docs/v5/concepts/animations/
