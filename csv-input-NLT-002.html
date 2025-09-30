@@ -12,9 +12,16 @@
       width: 100%;
       height: 600px; /* Increased height to accommodate the legend */
     }
+    #controls {
+        text-align: center;
+        margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
+  <div id="controls">
+      <button id="scaleYButton">Scale Y-axis to Max</button>
+  </div>
   <div id="chartdiv"></div>
 
   <script>
@@ -51,13 +58,15 @@
       marginTop: 40 // Increased top margin
     }));
 
+    let allData = []; // Variable to store all parsed data
+
     // Load CSV
     Papa.parse("csv/dataLog_CorrectedDatetime.csv", {
       download: true,
       header: true,
       dynamicTyping: true,
       complete: function(results) {
-        let parsed = results.data
+        allData = results.data
           .filter(row => row.datetime) // remove empty rows
           .map(row => {
             return {
@@ -66,18 +75,18 @@
             };
           });
 
-        if (parsed.length === 0) {
+        if (allData.length === 0) {
           console.error("No valid rows found in CSV (datetime parsing failed). Check CSV path/format.");
           return;
         }
 
         // Sort data by datetime
-        parsed.sort(function(a, b) {
+        allData.sort(function(a, b) {
           return a.datetime - b.datetime;
         });
 
         // Get all columns except 'datetime'
-        let valueFields = Object.keys(parsed[0]).filter(key => key !== 'datetime');
+        let valueFields = Object.keys(allData[0]).filter(key => key !== 'datetime');
 
         // Create a series for each value field
         let seriesList = [];
@@ -93,7 +102,7 @@
             visible: false
           }));
           seriesList.push(series);
-          series.data.setAll(parsed);
+          series.data.setAll(allData);
         });
 
         // Set data for the legend and enable checkboxes
@@ -104,6 +113,47 @@
     });
 
     chart.appear(1000, 100);
+
+    // Add button functionality
+    document.getElementById('scaleYButton').addEventListener('click', function() {
+        if (allData.length === 0) {
+            console.warn("No data loaded to scale Y-axis.");
+            return;
+        }
+
+        // Find the maximum and minimum value across all series
+        let minValue = Infinity;
+        let maxValue = -Infinity;
+
+        chart.series.each(function(series) {
+            if (series.get("visible")) { // Only consider visible series
+                series.data.each(function(dataItem) {
+                    let value = dataItem.get(series.get("valueYField"));
+                    if (value !== null && value !== undefined) {
+                        minValue = Math.min(minValue, value);
+                        maxValue = Math.max(maxValue, value);
+                    }
+                });
+            }
+        });
+
+        // If no visible series or all values are null/undefined
+        if (minValue === Infinity || maxValue === -Infinity) {
+             console.warn("No visible series with valid data to scale Y-axis.");
+             return;
+        }
+
+
+        // Add some padding to the min/max values
+        let padding = (maxValue - minValue) * 0.1; // 10% padding
+        let adjustedMinValue = minValue - padding;
+        let adjustedMaxValue = maxValue + padding;
+
+        // Set the new range for the y-axis
+        yAxis.set("min", adjustedMinValue);
+        yAxis.set("max", adjustedMaxValue);
+    });
+
   });
   </script>
 </body>
