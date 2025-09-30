@@ -107,7 +107,14 @@
 
         // Set data for the legend and enable checkboxes
         legend.data.setAll(seriesList);
-        legend.set("clickTarget", "none"); // Disable clicking on legend items
+        // Enable clicking on legend items to toggle visibility
+        legend.itemContainers.template.events.on("click", function(e) {
+            var series = e.target.dataItem.dataContext;
+            if (series) {
+                series.set("visible", !series.get("visible"));
+            }
+        });
+
 
       }
     });
@@ -116,17 +123,20 @@
 
     // Add button functionality
     document.getElementById('scaleYButton').addEventListener('click', function() {
+        console.log("Scale Y-axis button clicked."); // Debugging log
         if (allData.length === 0) {
             console.warn("No data loaded to scale Y-axis.");
             return;
         }
 
-        // Find the maximum and minimum value across all series
+        // Find the maximum and minimum value across all visible series
         let minValue = Infinity;
         let maxValue = -Infinity;
+        let hasVisibleSeries = false;
 
         chart.series.each(function(series) {
             if (series.get("visible")) { // Only consider visible series
+                hasVisibleSeries = true;
                 series.data.each(function(dataItem) {
                     let value = dataItem.get(series.get("valueYField"));
                     if (value !== null && value !== undefined) {
@@ -137,9 +147,17 @@
             }
         });
 
+        console.log("Calculated min value:", minValue); // Debugging log
+        console.log("Calculated max value:", maxValue); // Debugging log
+        console.log("Has visible series:", hasVisibleSeries); // Debugging log
+
+
         // If no visible series or all values are null/undefined
-        if (minValue === Infinity || maxValue === -Infinity) {
+        if (!hasVisibleSeries || minValue === Infinity || maxValue === -Infinity) {
              console.warn("No visible series with valid data to scale Y-axis.");
+             // Optionally reset axis or show a message
+             yAxis.set("min", undefined);
+             yAxis.set("max", undefined);
              return;
         }
 
@@ -149,9 +167,14 @@
         let adjustedMinValue = minValue - padding;
         let adjustedMaxValue = maxValue + padding;
 
+        console.log("Adjusted min value (with padding):", adjustedMinValue); // Debugging log
+        console.log("Adjusted max value (with padding):", adjustedMaxValue); // Debugging log
+
         // Set the new range for the y-axis
         yAxis.set("min", adjustedMinValue);
         yAxis.set("max", adjustedMaxValue);
+
+        console.log("Y-axis min and max set."); // Debugging log
     });
 
   });
