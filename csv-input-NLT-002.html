@@ -44,9 +44,11 @@
     // Add legend
     var legend = chart.children.push(am5.Legend.new(root, {
       centerX: am5.p50,
-      x: am5.p50
+      x: am5.p50,
+      // Position the legend below the chart
+      y: am5.p100,
+      centerY: am5.p100
     }));
-
 
     // Load CSV
     Papa.parse("csv/dataLog_CorrectedDatetime.csv", {
@@ -85,14 +87,17 @@
             yAxis: yAxis,
             valueYField: field,
             valueXField: "datetime",
-            tooltip: am5.Tooltip.new(root, { labelText: "{name}: {valueY}" })
+            tooltip: am5.Tooltip.new(root, {}), // Tooltip will show {name}: {valueY} by default
+            // Hide series by default
+            visible: false
           }));
           seriesList.push(series);
           series.data.setAll(parsed);
         });
 
-        // Set data for the legend
+        // Set data for the legend and enable checkboxes
         legend.data.setAll(seriesList);
+        legend.set("clickTarget", "none"); // Disable clicking on legend items
 
       }
     });
