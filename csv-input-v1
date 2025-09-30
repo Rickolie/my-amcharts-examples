@@ -51,7 +51,7 @@
     }));
 
     // Load CSV
-    Papa.parse("csv/dataLog_CorrectedNames.csv", {
+    Papa.parse("csv/dataLog_CorrectedDateTime.csv", {
       download: true,
       header: true,
       dynamicTyping: true,
