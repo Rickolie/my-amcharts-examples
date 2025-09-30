@@ -6,7 +6,7 @@
   <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <meta charset="UTF-8" />
-  <title>CSV Example V2</title>
+  <title>CSV Example V1</title>
   <style>
     #chartdiv {
       width: 100%;
@@ -47,7 +47,8 @@
       x: am5.p50,
       // Position the legend below the chart
       y: am5.p100,
-      centerY: am5.p100
+      centerY: am5.p0, // Adjusted centerY to position it below the chart
+      marginTop: 20 // Add some top margin to push it down further
     }));
 
     // Load CSV
