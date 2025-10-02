@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini SPA with Transitions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #333;
+            color: #fff;
+            padding: 1rem;
+        }
+        nav button {
+            margin-right: 10px;
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #555;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        nav button.active {
+            background: #0a74da;
+        }
+        #content {
+            padding: 1rem;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        #content.fade-out {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Mini SPA Page Loader</h1>
+        <nav>
+            <button onclick="loadPage('py-datetime.html', this)" class="active">Page 1</button>
+            <button onclick="loadPage('csv-input-NLT-003.html', this)">Page 2</button>
+            <button onclick="loadPage('page3.html', this)">Page 3</button>
+        </nav>
+    </header>
+
+    <div id="content">
+        Loading content...
+    </div>
+
+    <script>
+        async function loadPage(url, button) {
+            const contentDiv = document.getElementById('content');
+
+            // Highlight active button
+            document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Fade out current content
+            contentDiv.classList.add('fade-out');
+
+            // Wait for fade-out transition to finish
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Page not found');
+                const html = await response.text();
+                contentDiv.innerHTML = html;
+
+                // Execute scripts in loaded HTML
+                const scripts = contentDiv.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    if (oldScript.src) {
+                        newScript.src = oldScript.src;
+                    } else {
+                        newScript.textContent = oldScript.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                    document.body.removeChild(newScript);
+                });
+
+            } catch (err) {
+                contentDiv.innerHTML = `<p style="color:red;">${err.message}</p>`;
+            }
+
+            // Fade in new content
+            contentDiv.classList.remove('fade-out');
+        }
+
+        // Load default page on start
+        loadPage('page1.html', document.querySelector('nav button.active'));
+    </script>
+</body>
+</html>
