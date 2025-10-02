@@ -20,6 +20,11 @@
 </head>
 <body>
   <div id="controls">
+      <label for="startDate">Start Date:</label>
+      <input type="date" id="startDate">
+      <label for="endDate">End Date:</label>
+      <input type="date" id="endDate">
+      <button id="filterButton">Apply Filter</button>
       <button id="scaleYButton">Scale Y-axis to Max</button>
   </div>
   <div id="chartdiv"></div>
@@ -59,38 +64,122 @@
     }));
 
     let allData = []; // Variable to store all parsed data
+    let filteredData = []; // Variable to store filtered data
     let events = []; // Variable to store event data
     let alarmEvents = []; // Variable to store alarm event data
 
-    // Load CSV data for the plot
-    Papa.parse("csv/TLT1 30-9-25/dataLog_CorrectedDatetime3.csv", {
-      download: true,
-      header: true,
-      dynamicTyping: true,
-      complete: function(results) {
-        allData = results.data
-          .filter(row => row.datetime) // remove empty rows
-          .map(row => {
-            return {
-              ...row,
-              datetime: new Date(row.datetime).getTime()
-            };
-          });
+    // Function to load and process data
+    function loadData() {
+        // Load CSV data for the plot
+        Papa.parse("csv/TLT1 30-9-25/dataLog_CorrectedDatetime3.csv", {
+          download: true,
+          header: true,
+          dynamicTyping: true,
+          complete: function(results) {
+            allData = results.data
+              .filter(row => row.datetime) // remove empty rows
+              .map(row => {
+                return {
+                  ...row,
+                  datetime: new Date(row.datetime).getTime()
+                };
+              });
 
-        if (allData.length === 0) {
-          console.error("No valid rows found in dataLog_CorrectedDatetime.csv (datetime parsing failed). Check CSV path/format.");
-          return;
-        }
+            if (allData.length === 0) {
+              console.error("No valid rows found in dataLog_CorrectedDatetime.csv (datetime parsing failed). Check CSV path/format.");
+              return;
+            }
 
-        // Sort data by datetime
-        allData.sort(function(a, b) {
-          return a.datetime - b.datetime;
+            // Sort data by datetime
+            allData.sort(function(a, b) {
+              return a.datetime - b.datetime;
+            });
+
+            // Load AlarmLog.csv for events
+            Papa.parse("csv/TLT1 30-9-25/AlarmLog_Revised.csv", {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(alarmResults) {
+                    let alarmData = alarmResults.data
+                        .filter(row => row.datetime) // remove empty rows
+                        .map(row => {
+                            return {
+                                ...row,
+                                datetime: new Date(row.datetime).getTime()
+                            };
+                        });
+
+                    if (alarmData.length === 0) {
+                        console.warn("No valid rows found in AlarmLog_Revised.csv (datetime parsing failed). No alarm events will be added.");
+                        return;
+                    }
+
+                    // Sort alarm data by datetime
+                    alarmData.sort(function(a, b) {
+                        return a.datetime - b.datetime;
+                    });
+
+                    // Process alarm data to identify events
+                    let currentAlarmEvent = null;
+                    alarmEvents = []; // Clear previous alarm events
+                    alarmData.forEach(function(row) {
+                        // Check if StateAfter is a number
+                        if (typeof row.StateAfter === 'number') {
+                            if (row.StateAfter > 1 && currentAlarmEvent === null) {
+                                // Start of a new alarm event
+                                currentAlarmEvent = { start: row.datetime, msgNumber: row.MsgNumber };
+                            } else if (row.StateAfter === 0 && currentAlarmEvent !== null) {
+                                // End of an alarm event
+                                currentAlarmEvent.end = row.datetime;
+                                alarmEvents.push(currentAlarmEvent);
+                                currentAlarmEvent = null;
+                            }
+                        }
+                    });
+
+                    // If an event was started but didn't end in the data
+                    if (currentAlarmEvent !== null) {
+                        currentAlarmEvent.end = alarmData[alarmData.length - 1].datetime; // End at the last data point
+                        alarmEvents.push(currentAlarmEvent);
+                    }
+
+                    // Initial data display (before filtering)
+                    filterData();
+                }
+            });
+          }
+        });
+    }
+
+    // Function to filter data based on date range and update chart
+    function filterData() {
+        const startDateInput = document.getElementById('startDate').value;
+        const endDateInput = document.getElementById('endDate').value;
+
+        let startDate = startDateInput ? new Date(startDateInput).getTime() : null;
+        let endDate = endDateInput ? new Date(endDateInput).getTime() : null;
+
+        filteredData = allData.filter(row => {
+            const rowTime = row.datetime;
+            const isAfterStart = startDate === null || rowTime >= startDate;
+            const isBeforeEnd = endDate === null || rowTime <= endDate;
+            return isAfterStart && isBeforeEnd;
         });
 
-        // Get all columns except 'datetime'
-        let valueFields = Object.keys(allData[0]).filter(key => key !== 'datetime');
+        // Clear existing series and axis ranges
+        chart.series.clear();
+        xAxis.axisRanges.clear();
 
-        // Create a series for each value field
+        if (filteredData.length === 0) {
+            console.warn("No data found for the selected date range.");
+            return;
+        }
+
+        // Get all columns except 'datetime' from the filtered data
+        let valueFields = Object.keys(filteredData[0]).filter(key => key !== 'datetime');
+
+        // Create a series for each value field with filtered data
         let seriesList = [];
         valueFields.forEach(function(field) {
           let series = chart.series.push(am5xy.LineSeries.new(root, {
@@ -104,117 +193,71 @@
             visible: false
           }));
           seriesList.push(series);
-          series.data.setAll(allData);
+          series.data.setAll(filteredData);
         });
 
-        // Set data for the legend and enable checkboxes
+        // Update legend data
         legend.data.setAll(seriesList);
-        // Enable clicking on legend items to toggle visibility
-        legend.itemContainers.template.events.on("click", function(e) {
-            var series = e.target.dataItem.dataContext;
-            if (series) {
-                series.set("visible", !series.get("visible"));
-            }
-        });
 
-        // Load AlarmLog.csv for events
-        Papa.parse("csv/TLT1 30-9-25/AlarmLog_Revised.csv", {
-            download: true,
-            header: true,
-            dynamicTyping: true,
-            complete: function(alarmResults) {
-                let alarmData = alarmResults.data
-                    .filter(row => row.datetime) // remove empty rows
-                    .map(row => {
-                        return {
-                            ...row,
-                            datetime: new Date(row.datetime).getTime()
-                        };
-                    });
+        // Add axis ranges for filtered alarm events
+        alarmEvents.forEach(function(event) {
+            // Only add alarm ranges that fall within the filtered date range
+            const eventStart = event.start;
+            const eventEnd = event.end;
 
-                if (alarmData.length === 0) {
-                    console.warn("No valid rows found in AlarmLog_Revised.csv (datetime parsing failed). No alarm events will be added.");
-                    return;
-                }
+            const isEventAfterStart = startDate === null || eventEnd >= startDate;
+            const isEventBeforeEnd = endDate === null || eventStart <= endDate;
 
-                // Sort alarm data by datetime
-                alarmData.sort(function(a, b) {
-                    return a.datetime - b.datetime;
+            if (event.start !== undefined && event.end !== undefined && isEventAfterStart && isEventBeforeEnd) {
+                var rangeDataItem = xAxis.makeDataItem({
+                    value: Math.max(event.start, startDate || -Infinity), // Clamp start to filter start
+                    endValue: Math.min(event.end, endDate || Infinity) // Clamp end to filter end
                 });
 
-                // Process alarm data to identify events
-                let currentAlarmEvent = null;
-                alarmData.forEach(function(row) {
-                    // Check if StateAfter is a number
-                    if (typeof row.StateAfter === 'number') {
-                        if (row.StateAfter > 1 && currentAlarmEvent === null) {
-                            // Start of a new alarm event
-                            currentAlarmEvent = { start: row.datetime, msgNumber: row.MsgNumber };
-                        } else if (row.StateAfter === 0 && currentAlarmEvent !== null) {
-                            // End of an alarm event
-                            currentAlarmEvent.end = row.datetime;
-                            alarmEvents.push(currentAlarmEvent);
-                            currentAlarmEvent = null;
-                        }
-                    }
+                var range = xAxis.createAxisRange(rangeDataItem);
+
+                rangeDataItem.get("grid").setAll({
+                    stroke: am5.color(0xff0000), // Red color for alarm events
+                    strokeOpacity: 0.5,
+                    strokeDasharray: [3]
                 });
 
-                // If an event was started but didn't end in the data
-                if (currentAlarmEvent !== null) {
-                    currentAlarmEvent.end = alarmData[alarmData.length - 1].datetime; // End at the last data point
-                    alarmEvents.push(currentAlarmEvent);
-                }
+                rangeDataItem.get("axisFill").setAll({
+                    fill: am5.color(0xff0000), // Red color for alarm events
+                    fillOpacity: 0.1,
+                    visible: true
+                });
 
-
-                // Add axis ranges for each alarm event
-                alarmEvents.forEach(function(event) {
-                    if (event.start !== undefined && event.end !== undefined) { // Ensure start and end are defined
-                        var rangeDataItem = xAxis.makeDataItem({
-                            value: event.start,
-                            endValue: event.end
-                        });
-
-                        var range = xAxis.createAxisRange(rangeDataItem);
-
-                        rangeDataItem.get("grid").setAll({
-                            stroke: am5.color(0xff0000), // Red color for alarm events
-                            strokeOpacity: 0.5,
-                            strokeDasharray: [3]
-                        });
-
-                        rangeDataItem.get("axisFill").setAll({
-                            fill: am5.color(0xff0000), // Red color for alarm events
-                            fillOpacity: 0.1,
-                            visible: true
-                        });
-
-                        // Add a label for the event
-                        rangeDataItem.get("label").setAll({
-                          inside: true,
-                          text: "Alarm: " + event.msgNumber,
-                          rotation: 90,
-                          centerX: am5.p100,
-                          centerY: am5.p100,
-                          location: 0,
-                          paddingBottom: 10,
-                          paddingRight: 15
-                        });
-                    }
+                // Add a label for the event
+                rangeDataItem.get("label").setAll({
+                  inside: true,
+                  text: "Alarm: " + event.msgNumber,
+                  rotation: 90,
+                  centerX: am5.p100,
+                  centerY: am5.p100,
+                  location: 0,
+                  paddingBottom: 10,
+                  paddingRight: 15
                 });
             }
         });
-      }
-    });
+
+        chart.appear(1000, 100); // Animate chart appearance
+    }
+
+    // Initial data load
+    loadData();
+
 
     // Add button functionality
     document.getElementById('scaleYButton').addEventListener('click', function() {
         console.log("Scale Y-axis button clicked."); // Debugging log
-        if (allData.length === 0) {
-            console.warn("No data loaded to scale Y-axis.");
+        if (filteredData.length === 0) {
+            console.warn("No filtered data loaded to scale Y-axis.");
             return;
         }
 
-        // Find the maximum and minimum value across all visible series
+        // Find the maximum and minimum value across all visible series in filtered data
         let minValue = Infinity;
         let maxValue = -Infinity;
         let hasVisibleSeries = false;
@@ -232,14 +275,14 @@
             }
         });
 
-        console.log("Calculated min value:", minValue); // Debugging log
-        console.log("Calculated max value:", maxValue); // Debugging log
+        console.log("Calculated min value (filtered data):", minValue); // Debugging log
+        console.log("Calculated max value (filtered data):", maxValue); // Debugging log
         console.log("Has visible series:", hasVisibleSeries); // Debugging log
 
 
-        // If no visible series or all values are null/undefined
+        // If no visible series or all values are null/undefined in filtered data
         if (!hasVisibleSeries || minValue === Infinity || maxValue === -Infinity) {
-             console.warn("No visible series with valid data to scale Y-axis.");
+             console.warn("No visible series with valid data in the filtered range to scale Y-axis.");
              // Optionally reset axis or show a message
              yAxis.set("min", undefined);
              yAxis.set("max", undefined);
@@ -261,6 +304,8 @@
 
         console.log("Y-axis min and max set."); // Debugging log
     });
+
+    document.getElementById('filterButton').addEventListener('click', filterData);
 
     // Add scrollbar
     // https://www.amcharts.com/docs/v5/charts/xy-chart/scrollbars/
