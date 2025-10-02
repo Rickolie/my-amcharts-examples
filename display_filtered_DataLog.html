@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Display filtered DataLog</title>
+</head>
+<body>
+  <h2>Display filtered DataLog</h2>
+  <input type="file" id="originalFile" accept=".csv" />
+  <br /><br />
+  <button id="runBtn">Run Correction</button>
+  <br /><br />
+  <a id="downloadLink" style="display:none;">Download Corrected CSV</a>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+  <script>
+    let pyodideReadyPromise = loadPyodide({
+      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+    }).then(async (pyodide) => {
+       await pyodide.loadPackage(['pandas']); // Micropip is not needed if loading from URL directly
+
+       // Fetch the Python script from GitHub Pages
+       const pythonScriptUrl = "https://[YOUR_GITHUB_PAGES_USERNAME].github.io/python/datetime_corrector.py"; // **Replace with your actual GitHub Pages URL**
+       const response = await fetch(pythonScriptUrl);
+       if (!response.ok) {
+           throw new Error(\`Failed to fetch Python script: \${response.statusText}\`);
+       }
+       const pythonCode = await response.text();
+
+       // Write the fetched script to the Pyodide file system
+       pyodide.FS.writeFile("/content/datetime_corrector.py", pythonCode);
+
+       return pyodide;
+    });
+
+
+    async function runPythonScript(originalCsvText) {
+      let pyodide = await pyodideReadyPromise;
+
+      // Write uploaded CSV to Pyodide FS
+      pyodide.FS.mkdirTree("/content");
+      pyodide.FS.writeFile("/content/original.csv", originalCsvText);
+
+      // Execute the Python script from the file
+      await pyodide.runPythonAsync(`
+          import datetime_corrector
+      `);
+
+      // Read the corrected CSV from Pyodide FS
+      return pyodide.FS.readFile("/content/corrected.csv", { encoding: "utf8" });
+    }
+
+    document.getElementById("runBtn").onclick = async () => {
+      const fileInput = document.getElementById("originalFile");
+      if (!fileInput.files.length) {
+        alert("Please upload the original CSV file.");
+        return;
+      }
+
+      const text = await fileInput.files[0].text();
+
+      document.getElementById("runBtn").disabled = true;
+      document.getElementById("runBtn").textContent = "Processing...";
+
+      try {
+        const correctedCsv = await runPythonScript(text);
+        const blob = new Blob([correctedCsv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const link = document.getElementById("downloadLink");
+        link.href = url;
+        link.download = "corrected.csv";
+        link.style.display = "inline";
+        link.textContent = "Download Corrected CSV";
+      } catch (err) {
+        alert("Error during processing: " + err);
+      } finally {
+        document.getElementById("runBtn").disabled = false;
+        document.getElementById("runBtn").textContent = "Run Correction";
+      }
+    };
+  </script>
+</body>
+</html>
