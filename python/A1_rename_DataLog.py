@@ -25,4 +25,4 @@ cols.insert(0, cols.pop(datetime_index))
 df_dataLog = df_dataLog[cols]
 
 # Display the head of the resulting DataFrame to verify
-display(df_dataLog.head())
+print(df_dataLog.head())
