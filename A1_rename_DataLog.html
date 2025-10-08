@@ -20,7 +20,7 @@
        await pyodide.loadPackage(['pandas']); // Micropip is not needed if loading from URL directly
 
        // Fetch the Python script from GitHub Pages
-       const pythonScriptUrl = "https://[YOUR_GITHUB_PAGES_USERNAME].github.io/python/datetime_corrector.py"; // **Replace with your actual GitHub Pages URL**
+       const pythonScriptUrl = "https://[YOUR_GITHUB_PAGES_USERNAME].github.io/python/A1_rename_DataLog.py"; // **Replace with your actual GitHub Pages URL**
        const response = await fetch(pythonScriptUrl);
        if (!response.ok) {
            throw new Error(\`Failed to fetch Python script: \${response.statusText}\`);
@@ -28,7 +28,7 @@
        const pythonCode = await response.text();
 
        // Write the fetched script to the Pyodide file system
-       pyodide.FS.writeFile("/content/datetime_corrector.py", pythonCode);
+       pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
 
        return pyodide;
     });
