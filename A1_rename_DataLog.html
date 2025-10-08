@@ -79,7 +79,8 @@
 
         try {
           console.log("🚀 Running Python script");
-          await pyodide.runPythonAsync(pythonCode);
+          await pyodide.runPythonAsync("import pandas as pd\n" + pythonCode);
+
           console.log("✅ Python script executed");
         } catch (err) {
           console.error("❌ Python execution error:", err);
