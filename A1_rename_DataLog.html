@@ -4,42 +4,50 @@
   <meta charset="UTF-8" />
   <title>Rename dataLog. Add correct names to csv file</title>
   <link rel="icon" href="data:,"> <!-- Prevent favicon 404 -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script> <!-- Load Pyodide -->
 </head>
 <body>
-  <h2>1</h2>
+  <h2>CSV Correction Tool</h2>
   <input type="file" id="originalFile" accept=".csv" />
   <br /><br />
   <button id="runBtn">Run Correction</button>
   <br /><br />
   <a id="downloadLink" style="display:none;">Download Corrected CSV</a>
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
-    <script>
-  window.addEventListener("DOMContentLoaded", async () => {
-    console.log("🌐 DOM fully loaded");
 
-    const pyodide = await loadPyodide({
-      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
-    });
-    console.log("✅ Pyodide loaded");
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      console.log("🌐 DOM fully loaded");
 
-    await pyodide.loadPackage(['pandas']);
-    console.log("✅ Pandas loaded");
+      const pyodide = await loadPyodide({
+        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+      });
+      console.log("✅ Pyodide loaded");
 
-    const pythonScriptUrl = "https://rickolie.github.io/python/A1_rename_DataLog.py";
-    const response = await fetch(pythonScriptUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Python script: ${response.statusText}`);
-    }
+      await pyodide.loadPackage(['pandas']);
+      console.log("✅ Pandas loaded");
 
-    const pythonCode = await response.text();
-    pyodide.FS.mkdirTree("/content");
-    pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
-    console.log("✅ Python script written");
+      const pythonScriptUrl = "https://rickolie.github.io/python/A1_rename_DataLog.py";
+      console.log("📡 Fetching Python script from:", pythonScriptUrl);
 
-    async function runPythonScript(originalCsvText) {
-      pyodide.FS.writeFile("/content/original.csv", originalCsvText);
+      const response = await fetch(pythonScriptUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Python script: ${response.statusText}`);
+      }
 
-      await pyodide.runPythonAsync(`
+      const pythonCode = await response.text();
+      console.log("✅ Python script fetched");
+
+      pyodide.FS.mkdirTree("/content");
+      pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
+      console.log("✅ Python script written to /content");
+
+      async function runPythonScript(originalCsvText) {
+        console.log("📁 Writing uploaded CSV to /content/original.csv");
+        pyodide.FS.writeFile("/content/original.csv", originalCsvText);
+
+        try {
+          console.log("🚀 Running Python script");
+          await pyodide.runPythonAsync(`
 import pandas as pd
 csv_dataLog = '/content/original.csv'
 df_dataLog = pd.read_csv(csv_dataLog)
@@ -51,40 +59,54 @@ datetime_index = cols.index('datetime')
 cols.insert(0, cols.pop(datetime_index))
 df_dataLog = df_dataLog[cols]
 df_dataLog.to_csv('/content/corrected.csv', index=False)
-      `);
+print("✅ Python script executed successfully")
+          `);
+        } catch (err) {
+          console.error("❌ Python execution error:", err);
+          throw err;
+        }
 
-      return pyodide.FS.readFile("/content/corrected.csv", { encoding: "utf8" });
-    }
-
-    document.getElementById("runBtn").onclick = async () => {
-      const fileInput = document.getElementById("originalFile");
-      if (!fileInput.files.length) {
-        alert("Please upload the original CSV file.");
-        return;
+        console.log("📤 Reading corrected CSV from /content/corrected.csv");
+        return pyodide.FS.readFile("/content/corrected.csv", { encoding: "utf8" });
       }
 
-      const text = await fileInput.files[0].text();
-      document.getElementById("runBtn").disabled = true;
-      document.getElementById("runBtn").textContent = "Processing...";
+      document.getElementById("runBtn").onclick = async () => {
+        console.log("🟢 Run Correction button clicked");
 
-      try {
-        const correctedCsv = await runPythonScript(text);
-        const blob = new Blob([correctedCsv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const link = document.getElementById("downloadLink");
-        link.href = url;
-        link.download = "corrected.csv";
-        link.style.display = "inline";
-        link.textContent = "Download Corrected CSV";
-      } catch (err) {
-        alert("Error during processing: " + err);
-      } finally {
-        document.getElementById("runBtn").disabled = false;
-        document.getElementById("runBtn").textContent = "Run Correction";
-      }
-    };
-  });
-</script>
+        const fileInput = document.getElementById("originalFile");
+        if (!fileInput.files.length) {
+          alert("Please upload the original CSV file.");
+          console.log("⚠️ No file uploaded");
+          return;
+        }
 
+        const text = await fileInput.files[0].text();
+        console.log("📄 CSV file loaded");
+
+        document.getElementById("runBtn").disabled = true;
+        document.getElementById("runBtn").textContent = "Processing...";
+
+        try {
+          const correctedCsv = await runPythonScript(text);
+          console.log("✅ Python script finished");
+
+          const blob = new Blob([correctedCsv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const link = document.getElementById("downloadLink");
+          link.href = url;
+          link.download = "corrected.csv";
+          link.style.display = "inline";
+          link.textContent = "Download Corrected CSV";
+          console.log("📎 Download link ready");
+        } catch (err) {
+          console.error("❌ Error during processing:", err);
+          alert("Error during processing: " + err);
+        } finally {
+          document.getElementById("runBtn").disabled = false;
+          document.getElementById("runBtn").textContent = "Run Correction";
+        }
+      };
+    });
+  </script>
 </body>
 </html>
