@@ -1,5 +1,5 @@
 #Load and prepare datalog correctednames.csv
-csv_dataLog = '/content/dataLog_CorrectedNames.csv'
+csv_dataLog = '/content/original.csv'
 
 # Load the CSV file
 df_dataLog = pd.read_csv(csv_dataLog)
