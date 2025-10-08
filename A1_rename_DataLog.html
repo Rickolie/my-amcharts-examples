@@ -2,12 +2,12 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Rename dataLog. Add correct names to csv file</title>
+  <title>CSV Correction Tool</title>
   <link rel="icon" href="data:,"> <!-- Prevent favicon 404 -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script> <!-- Load Pyodide -->
 </head>
 <body>
-  <h2>CSV Correction Tool 2</h2>
+  <h2>CSV Correction Tool</h2>
   <input type="file" id="originalFile" accept=".csv" />
   <br /><br />
   <button id="runBtn">Run Correction</button>
@@ -18,24 +18,35 @@
     window.addEventListener("DOMContentLoaded", async () => {
       console.log("🌐 DOM fully loaded");
 
-      const pyodide = await loadPyodide({
-        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
-      });
-      console.log("✅ Pyodide loaded");
+      let pyodide;
+      try {
+        pyodide = await loadPyodide({
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+        });
+        console.log("✅ Pyodide loaded");
 
-      await pyodide.loadPackage(['pandas']);
-      console.log("✅ Pandas loaded");
+        await pyodide.loadPackage(['pandas']);
+        console.log("✅ Pandas loaded");
+      } catch (err) {
+        console.error("❌ Failed to load Pyodide or packages:", err);
+        return;
+      }
 
       const pythonScriptUrl = "https://rickolie.github.io/python/A1_rename_DataLog.py";
       console.log("📡 Fetching Python script from:", pythonScriptUrl);
 
-      const response = await fetch(pythonScriptUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Python script: ${response.statusText}`);
+      let pythonCode;
+      try {
+        const response = await fetch(pythonScriptUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch Python script: ${response.statusText}`);
+        }
+        pythonCode = await response.text();
+        console.log("✅ Python script fetched");
+      } catch (err) {
+        console.error("❌ Error fetching Python script:", err);
+        return;
       }
-
-      const pythonCode = await response.text();
-      console.log("✅ Python script fetched");
 
       pyodide.FS.mkdirTree("/content");
       pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
@@ -47,20 +58,8 @@
 
         try {
           console.log("🚀 Running Python script");
-          await pyodide.runPythonAsync(`
-import pandas as pd
-csv_dataLog = '/content/original.csv'
-df_dataLog = pd.read_csv(csv_dataLog)
-df_dataLog['datetime'] = pd.to_datetime(df_dataLog['Date'].astype(str) + ' ' + df_dataLog['UTC Time'].astype(str), errors='coerce')
-df_dataLog.dropna(subset=['datetime'], inplace=True)
-df_dataLog = df_dataLog.drop(columns=['Date', 'UTC Time'])
-cols = df_dataLog.columns.tolist()
-datetime_index = cols.index('datetime')
-cols.insert(0, cols.pop(datetime_index))
-df_dataLog = df_dataLog[cols]
-df_dataLog.to_csv('/content/corrected.csv', index=False)
-print("✅ Python script executed successfully")
-          `);
+          await pyodide.runPythonAsync(pythonCode);
+          console.log("✅ Python script executed");
         } catch (err) {
           console.error("❌ Python execution error:", err);
           throw err;
@@ -88,8 +87,6 @@ print("✅ Python script executed successfully")
 
         try {
           const correctedCsv = await runPythonScript(text);
-          console.log("✅ Python script finished");
-
           const blob = new Blob([correctedCsv], { type: "text/csv" });
           const url = URL.createObjectURL(blob);
           const link = document.getElementById("downloadLink");
@@ -99,7 +96,6 @@ print("✅ Python script executed successfully")
           link.textContent = "Download Corrected CSV";
           console.log("📎 Download link ready");
         } catch (err) {
-          console.error("❌ Error during processing:", err);
           alert("Error during processing: " + err);
         } finally {
           document.getElementById("runBtn").disabled = false;
