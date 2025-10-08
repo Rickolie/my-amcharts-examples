@@ -1,5 +1,6 @@
 #Load and prepare datalog correctednames.csv
 #file is temporarily stored within browser environment
+import pandas as pd
 csv_dataLog = '/content/original.csv'
 
 # Load the CSV file
