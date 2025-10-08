@@ -2,17 +2,21 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Pyodide Test</title>
-  <link rel="icon" href="data:,">
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+  <title>CSV Correction Tool</title>
+  <link rel="icon" href="data:,"> <!-- Prevent favicon 404 -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script> <!-- Load Pyodide -->
 </head>
 <body>
-  <h2>Pyodide Debug Test</h2>
-  <button id="testBtn">Test Pyodide</button>
+  <h2>CSV Correction Tool</h2>
+  <input type="file" id="originalFile" accept=".csv" />
+  <br /><br />
+  <button id="runBtn">Run Correction</button>
+  <br /><br />
+  <a id="downloadLink" style="display:none;">Download Corrected CSV</a>
 
   <script>
     window.addEventListener("DOMContentLoaded", async () => {
-      console.log("✅ DOM loaded");
+      console.log("🌐 DOM fully loaded");
 
       let pyodide;
       try {
@@ -24,17 +28,78 @@
         await pyodide.loadPackage(['pandas']);
         console.log("✅ Pandas loaded");
       } catch (err) {
-        console.error("❌ Pyodide error:", err);
+        console.error("❌ Failed to load Pyodide or packages:", err);
         return;
       }
 
-      document.getElementById("testBtn").onclick = async () => {
-        console.log("🟢 Button clicked");
+      const pythonScriptUrl = "https://rickolie.github.io/python/A1_rename_DataLog.py";
+      console.log("📡 Fetching Python script from:", pythonScriptUrl);
+
+      let pythonCode;
+      try {
+        const response = await fetch(pythonScriptUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch Python script: ${response.statusText}`);
+        }
+        pythonCode = await response.text();
+        console.log("✅ Python script fetched");
+      } catch (err) {
+        console.error("❌ Error fetching Python script:", err);
+        return;
+      }
+
+      pyodide.FS.mkdirTree("/content");
+      pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
+      console.log("✅ Python script written to /content");
+
+      async function runPythonScript(originalCsvText) {
+        console.log("📁 Writing uploaded CSV to /content/original.csv");
+        pyodide.FS.writeFile("/content/original.csv", originalCsvText);
+
         try {
-          await pyodide.runPythonAsync("print('Hello from Python')");
-          console.log("✅ Python executed");
+          console.log("🚀 Running Python script");
+          await pyodide.runPythonAsync(pythonCode);
+          console.log("✅ Python script executed");
         } catch (err) {
-          console.error("❌ Python error:", err);
+          console.error("❌ Python execution error:", err);
+          throw err;
+        }
+
+        console.log("📤 Reading corrected CSV from /content/corrected.csv");
+        return pyodide.FS.readFile("/content/corrected.csv", { encoding: "utf8" });
+      }
+
+      document.getElementById("runBtn").onclick = async () => {
+        console.log("🟢 Run Correction button clicked");
+
+        const fileInput = document.getElementById("originalFile");
+        if (!fileInput.files.length) {
+          alert("Please upload the original CSV file.");
+          console.log("⚠️ No file uploaded");
+          return;
+        }
+
+        const text = await fileInput.files[0].text();
+        console.log("📄 CSV file loaded");
+
+        document.getElementById("runBtn").disabled = true;
+        document.getElementById("runBtn").textContent = "Processing...";
+
+        try {
+          const correctedCsv = await runPythonScript(text);
+          const blob = new Blob([correctedCsv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const link = document.getElementById("downloadLink");
+          link.href = url;
+          link.download = "corrected.csv";
+          link.style.display = "inline";
+          link.textContent = "Download Corrected CSV";
+          console.log("📎 Download link ready");
+        } catch (err) {
+          alert("Error during processing: " + err);
+        } finally {
+          document.getElementById("runBtn").disabled = false;
+          document.getElementById("runBtn").textContent = "Run Correction";
         }
       };
     });
