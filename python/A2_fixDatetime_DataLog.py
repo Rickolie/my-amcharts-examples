@@ -1,0 +1,97 @@
+import pandas as pd
+from datetime import timedelta
+import sys
+
+#csv_original_filename = "/content/original.csv"
+#output_filename = "/content/corrected.csv"
+csv_original_filename = 
+
+def calculate_running_seconds(time_str):
+    try:
+        time_parts = time_str.replace('.', ':').split(':')
+        if len(time_parts) >= 3:
+            minutes_part = int(time_parts[0])
+            seconds_part = int(time_parts[1])
+            milliseconds_part_str = time_parts[2]
+            milliseconds_part = int(milliseconds_part_str.ljust(6, '0')[:6])
+            total_seconds = minutes_part * 60 + seconds_part + milliseconds_part / 1000000.0
+            return total_seconds
+        else:
+            return None
+    except:
+        return None
+ 
+try:
+    # Read original CSV
+    df = pd.read_csv(csv_original_filename)
+
+    # Expecting columns including 'Date' and 'UTC Time'
+    if 'Date' not in df.columns or 'UTC Time' not in df.columns:
+        raise ValueError("Input CSV must contain 'Date' and 'UTC Time' columns.")
+
+    df['Original_Date_Parsed'] = pd.to_datetime(df['Date'], format='%m/%d/%Y', errors='coerce')
+    df.dropna(subset=['Original_Date_Parsed'], inplace=True)
+
+    df['running_seconds'] = df['UTC Time'].apply(calculate_running_seconds)
+    df.dropna(subset=['running_seconds'], inplace=True)
+
+    df['date_changed'] = df['Original_Date_Parsed'].diff() > timedelta(days=0)
+    df['time_reset'] = df['running_seconds'].diff() < -60
+    df['new_hour_sequence_start'] = (df['date_changed']) | (df['time_reset'])
+    df.loc[0, 'new_hour_sequence_start'] = True
+    df['assigned_hour'] = df['new_hour_sequence_start'].cumsum() - 1
+
+    def reconstruct_datetime(row):
+        original_date = row['Original_Date_Parsed']
+        assigned_hour = row['assigned_hour']
+        running_seconds = row['running_seconds']
+        if pd.notna(original_date) and pd.notna(assigned_hour) and pd.notna(running_seconds):
+            total_seconds = assigned_hour * 3600 + running_seconds
+            time_delta = timedelta(seconds=total_seconds)
+            return original_date + time_delta
+        else:
+            return pd.NaT
+
+    df['datetime'] = df.apply(reconstruct_datetime, axis=1)
+    df.dropna(subset=['datetime'], inplace=True)
+
+    # Sort by new datetime
+    df = df.sort_values(by='datetime').reset_index(drop=True)
+
+    # Shift hours if needed before date change (like your original logic)
+    date_change_indices = df[df['datetime'].dt.date.diff() > timedelta(days=0)].index
+    if not date_change_indices.empty:
+        first_change_idx = date_change_indices[0]
+        if first_change_idx > 0:
+            hour_before = df.loc[first_change_idx - 1, 'datetime'].hour
+            if hour_before != 23:
+                hour_shift = 23 - hour_before
+                df['datetime'] = df['datetime'] + timedelta(hours=hour_shift)
+
+    # Robust date progression fix
+    prev_date = None
+    offsets = []
+    for idx, row in df.iterrows():
+        curr_date = row['datetime'].date()
+        if prev_date is not None:
+            diff_days = (curr_date - prev_date).days
+            if diff_days > 1:
+                days_to_subtract = diff_days - 1
+                offsets.append((idx, timedelta(days=-days_to_subtract)))
+        prev_date = curr_date
+
+    for start_idx, day_offset in offsets:
+        df.loc[start_idx:, 'datetime'] = df.loc[start_idx:, 'datetime'] + day_offset
+
+    # Format datetime as string with milliseconds
+    df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S.%f').str[:-3]
+
+    # Reorder columns to put datetime first
+    cols = ['datetime'] + [col for col in df.columns if col != 'datetime']
+    df = df[cols]
+
+    df.to_csv(output_filename, index=False)
+    print("Correction successful. Output saved to", output_filename, file=sys.stderr)
+
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
