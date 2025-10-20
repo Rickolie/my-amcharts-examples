@@ -1,30 +1,43 @@
-#Load and prepare datalog correctednames.csv
-#file is temporarily stored within browser environment
+# Load and prepare datalog correctednames.csv
 import pandas as pd
+
+# Path to the uploaded CSV file
 csv_dataLog = '/content/original.csv'
 
-# Load the CSV file
+# Load the CSV file with better memory handling
 df_dataLog = pd.read_csv(csv_dataLog, low_memory=False)
 
-# Create a new column named datetime by combining 'Date' and 'UTC Time'
-# Handle potential errors by coercing invalid parsing to NaT
-df_dataLog['datetime'] = pd.to_datetime(df_dataLog['Date'].astype(str) + ' ' + df_dataLog['UTC Time'].astype(str), errors='coerce')
+# Optional: Print column names for debugging
+print("📋 Columns in CSV:", df_dataLog.columns.tolist())
 
-# Drop any rows where the datetime column is NaT
+# Try to create a new 'datetime' column by combining 'Date' and 'UTC Time'
+try:
+    df_dataLog['datetime'] = pd.to_datetime(
+        df_dataLog['Date'].astype(str) + ' ' + df_dataLog['UTC Time'].astype(str),
+        errors='coerce'
+    )
+except Exception as e:
+    raise ValueError(f"❌ Failed to parse datetime: {e}")
+
+# Drop rows where datetime parsing failed
 df_dataLog.dropna(subset=['datetime'], inplace=True)
 
-# Drop the original 'Date' and 'UTC Time' columns
-df_dataLog = df_dataLog.drop(columns=['Date', 'UTC Time'])
+# Drop the original 'Date' and 'UTC Time' columns if they exist
+for col in ['Date', 'UTC Time']:
+    if col in df_dataLog.columns:
+        df_dataLog.drop(columns=[col], inplace=True)
 
-# Reorder the columns so that the datetime column is the first column
-cols = df_dataLog.columns.tolist()
-# Find the index of 'datetime'
-datetime_index = cols.index('datetime')
-# Move 'datetime' to the first position
-cols.insert(0, cols.pop(datetime_index))
-df_dataLog = df_dataLog[cols]
+# Reorder columns to place 'datetime' first
+if 'datetime' in df_dataLog.columns:
+    cols = df_dataLog.columns.tolist()
+    cols.insert(0, cols.pop(cols.index('datetime')))
+    df_dataLog = df_dataLog[cols]
+else:
+    raise ValueError("❌ 'datetime' column missing after parsing. Check 'Date' and 'UTC Time' formatting.")
 
-# Display the head of the resulting DataFrame to verify
+# Save the corrected CSV
+df_dataLog.to_csv('/content/corrected.csv', index=False)
+
+# Display the head of the resulting DataFrame
+print("✅ Preview of corrected data:")
 print(df_dataLog.head())
-
-
