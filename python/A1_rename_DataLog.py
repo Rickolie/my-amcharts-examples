@@ -14,7 +14,7 @@ df_dataLog['datetime'] = pd.to_datetime(df_dataLog['Date'].astype(str) + ' ' + d
 df_dataLog.dropna(subset=['datetime'], inplace=True)
 
 # Drop the original 'Date' and 'UTC Time' columns
-df_dataLog = df_dataLog.drop(columns=['Date', 'UTC Time'])
+df_dataLog = pd.read_csv(csv_dataLog, dtype={'Date': str, 'UTC Time': str})
 
 # Reorder the columns so that the datetime column is the first column
 cols = df_dataLog.columns.tolist()
@@ -26,3 +26,5 @@ df_dataLog = df_dataLog[cols]
 
 # Display the head of the resulting DataFrame to verify
 print(df_dataLog.head())
+
+
