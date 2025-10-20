@@ -4,7 +4,7 @@ import pandas as pd
 csv_dataLog = '/content/original.csv'
 
 # Load the CSV file
-df_dataLog = pd.read_csv(csv_dataLog)
+df_dataLog = pd.read_csv(csv_dataLog, low_memory=False)
 
 # Create a new column named datetime by combining 'Date' and 'UTC Time'
 # Handle potential errors by coercing invalid parsing to NaT
@@ -14,7 +14,7 @@ df_dataLog['datetime'] = pd.to_datetime(df_dataLog['Date'].astype(str) + ' ' + d
 df_dataLog.dropna(subset=['datetime'], inplace=True)
 
 # Drop the original 'Date' and 'UTC Time' columns
-df_dataLog = pd.read_csv(csv_dataLog, low_memory=False)
+df_dataLog = df_dataLog.drop(columns=['Date', 'UTC Time'])
 
 # Reorder the columns so that the datetime column is the first column
 cols = df_dataLog.columns.tolist()
