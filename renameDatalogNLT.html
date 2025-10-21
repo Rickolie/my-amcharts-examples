@@ -1,0 +1,78 @@
+#Generate file with corrected names NLT
+#WORKING#
+
+import pandas as pd
+import csv
+
+#csv_filename = '/content/drive/MyDrive/Colab Notebooks/VHT_LogFile/DataLog (3).csv'
+csv_filename = '/content/drive/MyDrive/Colab Notebooks/VHT_LogFile/NLT1 30-9-25/DataLog.csv'
+#csv_filename = '/content/DataLog.csv'
+output_filename = '/content/dataLog_CorrectedNames.csv'
+
+# Define the new column names in the correct order as they appear in the data
+new_column_names = ['SeqNo', 'Date', 'UTC Time',
+                    '[°C*10] LCC_CABINET_TEMP',
+                    '[°C*10] LCC_CABINET_HUM',
+                    '[%] LCC_UPS_BATT_LVL',
+                    '[bar] HPU_SYSTEM_PRESSURE',
+                    '[°C*10] HPU_OIL_TEMPERATURE',
+                    '[rpm] HPU_MOTOR_SPEED',
+                    '[W] HPU_MOTOR_POWER',
+                    '[V] BATTERIES_VOLTAGE',
+                    '[A*10] BATTERIES_CURRENT',
+                    '[kWh] BATTERIES_CAPACITY',
+                    '[%] BATTERIES_SOC',
+                    '[A*10] CHARGER_CURRENT',
+                    'FRONT_LINKS_UL_POS',
+                    'FRONT_LINKS_UL_SPEED',
+                    'FRONT_LINKS_UL_VALVE',
+                    'FRONT_LINKS_UR_POS',
+                    'FRONT_LINKS_UR_SPEED',
+                    'FRONT_LINKS_UR_VALVE',
+                    'FRONT_LINKS_LL_POS',
+                    'FRONT_LINKS_LL_SPEED',
+                    'FRONT_LINKS_LL_VALVE',
+                    'FRONT_LINKS_LR_POS',
+                    'FRONT_LINKS_LR_SPEED',
+                    'FRONT_LINKS_LR_VALVE',
+                    '[°*10] TUGGER ROTATION',
+                    '[°/s*100] TUGGER ROTATION SPEED',
+                    '[bar] TUGGER PRESSURE A',
+                    '[bar] TUGGER PRESSURE B',
+                    '[bar] TUGGER PRESSURE BRAKE',
+                    '[%] TUGGER VALVE',
+                    '[mm] COG LEFT POSITION',
+                    '[mm*100] COG LEFT SPEED',
+                    '[bar] COG LEFT BOTTOMSIDE PRESSURE',
+                    '[bar] COG LEFT RODSIDE PRESSURE',
+                    '[mm] COG RIGHT POSITION',
+                    '[mm*100] COG RIGHT SPEED',
+                    '[bar] COG RIGHT BOTTOMSIDE PRESSURE',
+                    '[bar] COG RIGHT RODSIDE PRESSURE',
+                    '[%] COG VALVE FEEDBACK',
+                    ]
+
+data = []
+
+# Manually parse the CSV file
+with open(csv_filename, 'r') as f:
+    # Skip the header row
+    next(f)
+    for line in f:
+        # Split the line by comma
+        values = line.strip().split(',')
+        # Ensure the number of values matches the expected columns
+        if len(values) == len(new_column_names):
+            data.append(values)
+        else:
+            # Print lines with incorrect number of values for debugging
+            print(f"Skipping line due to incorrect number of values ({len(values)}): {line.strip()}")
+
+
+# Create a DataFrame from the parsed data
+df = pd.DataFrame(data, columns=new_column_names)
+
+# Save the DataFrame with corrected names to a new CSV file
+df.to_csv(output_filename, index=False)
+
+print(f"Data with corrected names saved to {output_filename}")
