@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>CSV Correction Tool</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+  <style>
+    #runBtn {
+      display: none;
+    }
+    #loadingStatus {
+      font-weight: bold;
+      color: #555;
+    }
+    #previewTable {
+      margin-top: 20px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    #previewTable th, #previewTable td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: left;
+    }
+    #previewTable th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h2>CSV Correction Tool</h2>
+  <input type="file" id="originalFile" accept=".csv" />
+  <br /><br />
+  <div id="loadingStatus">🔄 Loading Python environment...</div>
+  <button id="runBtn">Run Correction</button>
+  <br /><br />
+  <a id="downloadLink" style="display:none;">Download Corrected CSV</a>
+  <div id="previewContainer"></div>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", async () => {
+      console.log("🌐 DOM fully loaded");
+
+      const loadingStatus = document.getElementById("loadingStatus");
+      const runBtn = document.getElementById("runBtn");
+
+      let pyodide;
+      try {
+        loadingStatus.textContent = "🔄 Loading Pyodide...";
+        pyodide = await loadPyodide({
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+        });
+        console.log("✅ Pyodide loaded");
+
+        loadingStatus.textContent = "🔄 Loading pandas...";
+        await pyodide.loadPackage(['pandas']);
+        console.log("✅ Pandas loaded");
+      } catch (err) {
+        loadingStatus.textContent = "❌ Failed to load Python environment.";
+        console.error("❌ Pyodide or package load error:", err);
+        return;
+      }
+
+      const pythonScriptUrl = "python/A1_rename_DataLog.py";
+      loadingStatus.textContent = "🔄 Fetching Python script...";
+      console.log("📡 Fetching Python script from:", pythonScriptUrl);
+
+      let pythonCode;
+      try {
+        const response = await fetch(pythonScriptUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch Python script: ${response.statusText}`);
+        }
+        pythonCode = await response.text();
+        console.log("✅ Python script fetched");
+      } catch (err) {
+        loadingStatus.textContent = "❌ Failed to fetch Python script.";
+        console.error("❌ Error fetching Python script:", err);
+        return;
+      }
+
+      pyodide.FS.mkdirTree("/content");
+      pyodide.FS.writeFile("/content/A1_rename_DataLog.py", pythonCode);
+      console.log("✅ Python script written to /content");
+
+      loadingStatus.style.display = "none";
+      runBtn.style.display = "inline-block";
+
+      async function runPythonScript(originalCsvText) {
+        console.log("📁 Writing uploaded CSV to /content/original.csv");
+        pyodide.FS.writeFile("/content/original.csv", originalCsvText);
+
+        try {
+          console.log("🚀 Running Python script");
+          await pyodide.runPythonAsync("import pandas as pd\n" + pythonCode);
+          console.log("✅ Python script executed");
+        } catch (err) {
+          console.error("❌ Python execution error:", err);
+          throw err;
+        }
+
+        console.log("📤 Reading corrected CSV from /content/corrected.csv");
+        return pyodide.FS.readFile("/content/corrected.csv", { encoding: "utf8" });
+      }
+
+      function showPreview(csvText) {
+        const rows = csvText.trim().split("\n").slice(0, 11); // header + 10 rows
+        const table = document.createElement("table");
+        table.id = "previewTable";
+
+        rows.forEach((row, i) => {
+          const tr = document.createElement("tr");
+          row.split(",").forEach(cell => {
+            const td = document.createElement(i === 0 ? "th" : "td");
+            td.textContent = cell;
+            tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        });
+
+        const container = document.getElementById("previewContainer");
+        container.innerHTML = "<h3>Preview of Corrected CSV:</h3>";
+        container.appendChild(table);
+      }
+
+      runBtn.onclick = async () => {
+        console.log("🟢 Run Correction button clicked");
+
+        const fileInput = document.getElementById("originalFile");
+        if (!fileInput.files.length) {
+          alert("Please upload the original CSV file.");
+          console.log("⚠️ No file uploaded");
+          return;
+        }
+
+        const text = await fileInput.files[0].text();
+        console.log("📄 CSV file loaded");
+
+        runBtn.disabled = true;
+        runBtn.textContent = "Processing...";
+
+        try {
+          const correctedCsv = await runPythonScript(text);
+          const blob = new Blob([correctedCsv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+
+          const link = document.getElementById("downloadLink");
+          link.href = url;
+          link.download = "corrected.csv";
+          link.style.display = "inline";
+          link.textContent = "Download Corrected CSV";
+          console.log("📎 Download link ready");
+
+          showPreview(correctedCsv);
+        } catch (err) {
+          alert("Error during processing: " + err);
+        } finally {
+          runBtn.disabled = false;
+          runBtn.textContent = "Run Correction";
+        }
+      };
+    });
+  </script>
+</body>
+</html>
